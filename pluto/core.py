@@ -22,6 +22,7 @@ async def score(bars: bars_dtype, code: str = None) -> Tuple:
         4. 计算累计最大涨幅
         5. 计算出现累计最大跌幅（上涨之前）
         6. 计算中除情况2之外，都使用收盘价计算。
+        7. 时间单位为日，分钟单位数据不可计算。
 
     Args:
         bars: 包含信号发出日的行情数据
@@ -30,4 +31,38 @@ async def score(bars: bars_dtype, code: str = None) -> Tuple:
     Returns:
         包含每日累计涨跌幅，最大涨幅和最大跌幅的元组。
     """
-    pass
+    assert len(bars)>=2, "must provide an array with at least 2 length!"
+
+    returns=[]
+    max_returns=[]
+    mdds=[]
+
+    limit_flag = (await Stock.trade_price_limit_flags(code, bars['frame'][0].item(), bars['frame'][0].item()))[0][0]
+    # 如果检测当天涨停，第二天开盘价未涨停买入，第二天开始收盘价作为收益。
+    if (limit_flag
+        &((bars['open'][1]-bars['close'][0])/bars['close'][0]<0.099)):
+        price_np = np.append(bars['open'][1],bars['close'][1:])
+        returns = (price_np[1:]-price_np[0])/price_np[0]
+        max_return = np.nanmax(returns)
+        max_returns.append(max_return)
+        max_index = np.argmax(returns)
+        # 防止涨停之前的最大跌幅为空值，取到最大值
+        to_max = returns[:max_index+1]
+        mdd = np.nanmin(to_max)
+        if (mdd<0): 
+            mdds.append(mdd)
+        
+    
+    # 如果检测当天可以买进，则直接买入，后五天的收盘价作为收益，开盘涨停则不考虑
+    elif not limit_flag:
+        returns = (bars['close'][1:]-bars['close'][0])/bars['close'][0]
+        max_return = np.nanmax(returns)
+        max_returns.append(max_return)
+        max_index = np.argmax(returns)
+        # 防止涨停之前的最大跌幅为空值，取到最大值
+        to_max = returns[:max_index+1]
+        mdd = np.nanmin(to_max)
+        if (mdd<0): 
+            mdds.append(mdd)
+    return returns, max_returns, mdds
+
