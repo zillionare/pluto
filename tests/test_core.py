@@ -15,7 +15,7 @@ class  CoreTest(unittest.IsolatedAsyncioTestCase):
        ('2022-09-30T00:00:00',  9.05,  9.93, 9.  ,  9.93, 11580068., 1.12574827e+08, 6.158)],
       dtype=[('frame', '<M8[s]'), ('open', '<f4'), ('high', '<f4'), ('low', '<f4'), 
       ('close', '<f4'), ('volume', '<f8'), ('amount', '<f8'), ('factor', '<f4')])
-        with mock.patch('omicron.models.stock.Stock.trade_price_limit_flags', return_value=([True], [False])):
+        with mock.patch('omicron.models.stock.Stock.trade_price_limit_flags', side_effect=[(True, False), (True, False)]):
             actual = await score(bars, code)
             exp = ([0.00106952, -0.0342246 ,  0.06203209],
                     [0.062032085561497335],
