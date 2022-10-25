@@ -7,7 +7,7 @@ import omicron
 from freezegun import freeze_time
 
 from pluto.config import get_config_dir
-from pluto.store import BuyLimitPoolStore
+from pluto.store.buylimitpool import BuyLimitPoolStore
 
 
 class StoreTest(unittest.IsolatedAsyncioTestCase):
