@@ -23,7 +23,7 @@ class ZarrStore(object):
             or os.path.join(cur_dir, "pluto.zarr")
         )
 
-        self._store = zarr.open(path, mode="a")
+        self._store = zarr.open(self._store_path, mode="a")
 
     def __getitem__(self, key):
         return self._store[key]
@@ -44,12 +44,16 @@ class BuyLimitPoolStore(ZarrStore):
         ]
     )
 
+    def __init__(self, path: str = None, n: int = 20):
+        self.win = n
+        super().__init__(path)
+
     def save(self, timestamp: datetime.date, pool):
-        key = f"{timestamp.year:04}-{timestamp.month:02}-{timestamp.day:02}"
+        key = f"{self.win}/{timestamp.year:04}-{timestamp.month:02}-{timestamp.day:02}"
         self._store[key] = pool
 
     def _adjust_timestamp(self, timestamp: datetime.date) -> datetime.date:
-        if tf.is_trade_day(timestamp) and arrow.now().hour < 15:
+        if tf.is_trade_day(timestamp) and datetime.datetime.now().hour < 15:
             return tf.day_shift(timestamp, -1)
         else:
             return tf.day_shift(timestamp, 0)
@@ -57,7 +61,7 @@ class BuyLimitPoolStore(ZarrStore):
     async def get(self, timestamp: datetime.date):
         timestamp = self._adjust_timestamp(timestamp)
 
-        key = f"{timestamp.year:04}-{timestamp.month:02}-{timestamp.day:02}"
+        key = f"{self.win}/{timestamp.year:04}-{timestamp.month:02}-{timestamp.day:02}"
         try:
             return self._store[key]
         except KeyError:
@@ -104,11 +108,11 @@ class BuyLimitPoolStore(ZarrStore):
         except Exception as e:
             logger.exception(e)
 
-    async def pooling(self, win: int = 20, end: datetime.date = None):
-        end = end or arrow.now().date()
-        end = self._adjust_timestamp(end)
+    async def pooling(self, end: datetime.date = None):
+        if end is None:
+            end = self._adjust_timestamp(arrow.now().date())
 
-        logger.info("building buy limit pool for %s...", end)
+        logger.info("building buy limit pool for %s(%s)...", end, self.win)
         secs = (
             await Security.select()
             .types(["stock"])
@@ -119,12 +123,13 @@ class BuyLimitPoolStore(ZarrStore):
         )
         result = []
         for sec in secs:
-            r = await self.extract_buy_limit_features(sec, end, win)
+            r = await self.extract_buy_limit_features(sec, end, self.win)
             if r is not None:
                 result.append(r)
 
         records = np.array(result, dtype=self.dtype)
         self.save(end, records)
+        return records
 
     def status(self):
         return sorted(self._store.array_keys())
