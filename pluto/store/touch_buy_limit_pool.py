@@ -21,10 +21,10 @@ class TouchBuyLimitPoolStore(ZarrStore):
         [
             ("name", "<U16"),
             ("code", "<U16"),
-            ("date", "datetime64[S]"),
+            ("date", "datetime64[s]"),
             ("shadow", "f4"),
             ("va", "f4"),
-            ("vb", "f5"),
+            ("vb", "f4"),
         ]
     )
 

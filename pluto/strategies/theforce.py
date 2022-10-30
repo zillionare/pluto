@@ -3,13 +3,13 @@ from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from base import BaseStrategy
 from coretypes import BarsArray, FrameType
 from omicron.models.security import Security
 from omicron.models.stock import Stock
 from sklearn.metrics.pairwise import cosine_similarity
 
 from pluto.core.metrics import vanilla_score
+from pluto.strategies.base import BaseStrategy
 
 
 class TheForceStrategy(BaseStrategy):
