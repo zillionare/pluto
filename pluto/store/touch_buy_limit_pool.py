@@ -1,74 +1,47 @@
+"""当天触及过涨停的个股池，记录其（30分钟bar）上影线、涨停bar前向量比，至当天收盘时的后向量比。
+"""
 import datetime
 import logging
-import os
 from typing import Optional, Tuple
 
 import arrow
 import numpy as np
-import zarr
 from omicron import tf
 from omicron.extensions import find_runs
 from omicron.models.security import Security
 from omicron.models.stock import Stock
 
+from pluto.store.base import ZarrStore
+
 logger = logging.getLogger(__name__)
 
 
-class ZarrStore(object):
-    def __init__(self, path=None):
-        cur_dir = os.path.dirname(__file__)
-        self._store_path = (
-            path
-            or os.environ.get("pluto_store_path")
-            or os.path.join(cur_dir, "pluto.zarr")
-        )
-
-        self._store = zarr.open(self._store_path, mode="a")
-
-    def __getitem__(self, key):
-        return self._store[key]
-
-    def __setitem__(self, key, value):
-        self._store[key] = value
-
-
-class BuyLimitPoolStore(ZarrStore):
+class TouchBuyLimitPoolStore(ZarrStore):
     dtype = np.dtype(
         [
             ("name", "<U16"),
             ("code", "<U16"),
-            ("total", "i4"),
-            ("continuous", "i4"),
-            ("last_date", "datetime64[D]"),
-            ("till_now", "i4"),
+            ("date", "datetime64[S]"),
+            ("shadow", "f4"),
+            ("va", "f4"),
+            ("vb", "f5"),
         ]
     )
 
-    def __init__(self, path: str = None, n: int = 20):
-        self.win = n
+    def __init__(self, path: str = None):
         super().__init__(path)
 
-    def save(self, timestamp: datetime.date, pool):
-        key = f"{self.win}/{timestamp.year:04}-{timestamp.month:02}-{timestamp.day:02}"
-        self._store[key] = pool
-
-    def _adjust_timestamp(self, timestamp: datetime.date) -> datetime.date:
-        if tf.is_trade_day(timestamp) and datetime.datetime.now().hour < 15:
-            return tf.day_shift(timestamp, -1)
-        else:
-            return tf.day_shift(timestamp, 0)
+    def save(self, records):
+        self._store.append(records)
 
     async def get(self, timestamp: datetime.date):
-        timestamp = self._adjust_timestamp(timestamp)
+        start = tf.combine_time(timestamp, 0)
+        end = tf.combine_time(timestamp, 15)
+        idx = np.argwhere((self._store["date"] >= start) & (self._store["date"] < end))
+        return self._store[idx]
 
-        key = f"{self.win}/{timestamp.year:04}-{timestamp.month:02}-{timestamp.day:02}"
-        try:
-            return self._store[key]
-        except KeyError:
-            return await self.pooling(end=timestamp)
-
-    async def extract_buy_limit_features(
-        self, code: str, end: datetime.date, n: int
+    async def extract_features(
+        self, code: str, end: datetime.date, n: int = 10
     ) -> Optional[Tuple]:
         """提取个股在[start, end]期间的涨跌停特征
 
@@ -80,10 +53,10 @@ class BuyLimitPoolStore(ZarrStore):
         Returns:
             如果存在涨停，则返回(name, code, 总涨停次数，连续涨停次数，最后涨停时间，最后涨停距现在的bar数)
         """
-        start = tf.day_shift(end, -n + 1)
+        start = tf.day_shift(end, -1)
 
         try:
-            flags = await Stock.trade_price_limit_flags(code, start, end)
+            flags = await Stock.get_trade_price_limits(code, start, end)
             if flags is None or len(flags) == 0:
                 return None
 
@@ -137,25 +110,3 @@ class BuyLimitPoolStore(ZarrStore):
     async def query(self, timestamp: datetime.date, code: str):
         pool = await self.get(self._adjust_timestamp(timestamp))
         return pool[pool["code"] == code]
-
-
-if __name__ == "__main__":
-    store = BuyLimitPoolStore()
-
-    import cfg4py
-
-    from pluto.config import get_config_dir
-
-    os.environ[cfg4py.envar] = "DEV"
-    cfg4py.init(get_config_dir())
-
-    async def main():
-        import omicron
-
-        await omicron.init()
-        await store.get(datetime.date(2022, 10, 3))
-        print(store.status())
-
-    import asyncio
-
-    asyncio.run(main())

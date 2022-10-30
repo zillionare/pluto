@@ -12,6 +12,10 @@ class TestVolumeFeatures(unittest.IsolatedAsyncioTestCase):
         init_test_env()
         await omicron.init()
 
+    async def asyncTearDown(self) -> None:
+        await omicron.close()
+        return await super().asyncTearDown()
+
     def test_top_volume_direction(self):
         # 600163.XSHG 2021-09-02 11:30
 

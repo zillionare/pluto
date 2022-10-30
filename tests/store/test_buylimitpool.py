@@ -4,10 +4,11 @@ import unittest
 
 import cfg4py
 import omicron
+import pytest
 from freezegun import freeze_time
 
 from pluto.config import get_config_dir
-from pluto.store.buylimitpool import BuyLimitPoolStore
+from pluto.store.buy_limit_pool import BuyLimitPoolStore
 
 
 class StoreTest(unittest.IsolatedAsyncioTestCase):
@@ -16,6 +17,11 @@ class StoreTest(unittest.IsolatedAsyncioTestCase):
         cfg4py.init(get_config_dir())
         await omicron.init()
 
+    async def asyncTearDown(self) -> None:
+        await omicron.close()
+        return await super().asyncTearDown()
+
+    @pytest.mark.skipif(os.environ.get("IS_GITHUB"), reason="本测试只能在本地运行")
     async def test_adjust_timestamp(self):
         store = BuyLimitPoolStore()
 
@@ -30,7 +36,3 @@ class StoreTest(unittest.IsolatedAsyncioTestCase):
         with freeze_time("2022-10-7 15:00:00"):
             actual = store._adjust_timestamp(datetime.datetime.now().date())
             self.assertEqual(actual, datetime.date(2022, 9, 30))
-
-        import arrow
-
-        await store.get(arrow.now().date())
