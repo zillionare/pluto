@@ -1,12 +1,11 @@
-import datetime
 import logging
-from typing import Tuple
+from itertools import combinations
+from typing import Iterable, Tuple
 
 import numpy as np
 from coretypes import bars_dtype
 from omicron import tf
-from omicron.extensions import find_runs, price_equal
-from omicron.models.security import Security
+from omicron.extensions import price_equal
 from omicron.models.stock import Stock
 
 logger = logging.getLogger(__name__)
@@ -129,3 +128,25 @@ async def vanilla_score(
                 mdds.append(mdd)
 
     return returns, max_returns, mdds
+
+
+def parallel_score(mas: Iterable[float]) -> float:
+    """求均线排列分数。
+
+    返回值介于[0, 1]之间。如果为1，则最后一期均线值为全多头排列，即所有的短期均线都位于所有的长期均线之上；如果为0，则是全空头排列，即所有的短期均线都位于所有的长期均线之下。值越大，越偏向于多头排列；值越小，越偏向于空头排列。
+
+    Args:
+        mas: 移动平均线数组
+
+    Returns:
+        排列分数，取值在[0,1]区间内。
+    """
+    count = 0
+    total = 0
+
+    for a, b in combinations(mas, 2):
+        total += 1
+        if a >= b:
+            count += 1
+
+    return count / total

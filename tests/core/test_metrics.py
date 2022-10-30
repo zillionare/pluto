@@ -4,7 +4,7 @@ from unittest import mock
 
 import numpy as np
 
-from pluto.core.metrics import vanilla_score
+from pluto.core.metrics import parallel_score, vanilla_score
 
 
 class MetricsTest(unittest.IsolatedAsyncioTestCase):
@@ -956,3 +956,13 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
                 exp = ([0.16308728, 0.27919462, 0.20872487], [0.27919462], [])
                 for i in range(3):
                     np.testing.assert_array_almost_equal(actual[i], exp[i], decimal=3)
+
+    def test_parallel_score(self):
+        mas = [1, 1.1, 1.2, 1.3, 1.4]
+        self.assertEqual(0, parallel_score(mas))
+
+        mas = [1.4, 1.3, 1.2, 1.1, 1]
+        self.assertEqual(1, parallel_score(mas))
+
+        mas = [1.4, 1.3, 1.1, 1.2, 1]
+        self.assertAlmostEqual(0.9, parallel_score(mas))
