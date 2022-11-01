@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import zarr
 
@@ -9,13 +10,20 @@ class ZarrStore(object):
         self._store_path = (
             path
             or os.environ.get("pluto_store_path")
-            or os.path.join(cur_dir, "pluto.zarr")
+            or os.path.join(cur_dir, "pluto.axzarr")
         )
 
         self._store = zarr.open(self._store_path, mode="a")
 
-    def __getitem__(self, key):
+    def save(self, key: str, value: Any):
+        key = f"{self.__class__.__name__.lower()}/{key}"
+        self._store[key] = value
+
+    def get(self, key: str):
+        key = f"{self.__class__.__name__.lower()}/{key}"
         return self._store[key]
 
-    def __setitem__(self, key, value):
-        self._store[key] = value
+    @property
+    def store(self):
+        key = f"{self.__class__.__name__.lower()}"
+        return self._store[key]

@@ -2,13 +2,13 @@
 """
 import datetime
 import logging
-from types import FrameType
 from typing import Optional, Tuple
 
 import arrow
 import numpy as np
+from coretypes import FrameType
 from omicron import tf
-from omicron.extensions import find_runs, price_equal
+from omicron.extensions import price_equal
 from omicron.models.security import Security
 from omicron.models.stock import Stock
 
@@ -27,23 +27,35 @@ class TouchBuyLimitPoolStore(ZarrStore):
         ]
     )
 
-    def __init__(self, path: str = "传入一个path,用于测试"):
+    def __init__(self, path: str = None):
         super().__init__(path)
 
     def save(self, records):
-        self._store.append(records)
+        date = records[-1]["date"].item().date()
+        try:
+            records = np.append(self.store, records)
+        except KeyError:  # the very first time
+            pass
+        super().save("/", records)
+        pooled = self.store.attrs.get("pooled", [])
+        pooled.append(tf.date2int(date))
+        self.store.attrs["pooled"] = pooled
 
     def _adjust_timestamp(self, timestamp: datetime.date) -> datetime.date:
-        if tf.is_trade_day(timestamp) and datetime.datetime.now().hour < 15:
-            return tf.day_shift(timestamp, -1)
-        else:
+        """避免存入非交易日数据"""
+        if not tf.is_trade_day(timestamp):
             return tf.day_shift(timestamp, 0)
 
     async def get(self, timestamp: datetime.date):
-        start = tf.combine_time(timestamp, 0)
-        end = tf.combine_time(timestamp, 15)
-        idx = np.argwhere((self._store["date"] >= start) & (self._store["date"] < end))
-        return self._store[idx]
+        if tf.date2int(timestamp) not in self.pooled:
+            return await self.pooling(timestamp)
+        else:
+            start = tf.combine_time(timestamp, 0)
+            end = tf.combine_time(timestamp, 15)
+            idx = np.argwhere(
+                (self.store["date"] >= start) & (self.store["date"] < end)
+            ).flatten()
+            return self.store[idx]
 
     async def extract_touch_buy_limit_features(
         self, code: str, end: datetime.date
@@ -59,21 +71,24 @@ class TouchBuyLimitPoolStore(ZarrStore):
         """
 
         try:
-            flags = await Stock.get_trade_price_limits(code, end, end)
-            if flags is None or len(flags) == 0:
+            prices = await Stock.get_trade_price_limits(code, end, end)
+            if len(prices) == 0:
                 return None
 
-            high_limit = flags["high_limit"][0]
+            high_limit = prices["high_limit"][0]
+            start = tf.combine_time(end, 10)
             end_time = tf.combine_time(end, 15)
-            bar = await Stock.get_bars(code, 8, FrameType.MIN30, end_time)
-            close = bar["close"][-1]
-            open = bar["close"][-1]
-            for i in range(len(bar)):
-                limit_signal = price_equal(bar["high"][i], high_limit)
+            bars = await Stock.get_bars_in_range(
+                code, FrameType.MIN30, start=start, end=end_time
+            )
+            close = bars["close"][-1]
+            opn = bars["open"][0]
+            for i in range(len(bars)):
+                limit_signal = price_equal(bars["high"][i], high_limit)
                 if limit_signal and (not price_equal(close, high_limit)):
                     name = await Security.alias(code)
-                    upper_line = high_limit / max(close, open) - 1
-                    return (name, code, bar["frame"][i].item(), upper_line)
+                    upper_line = high_limit / max(close, opn) - 1
+                    return (name, code, bars["frame"][i].item(), upper_line)
 
         except Exception as e:
             logger.exception(e)
@@ -82,7 +97,10 @@ class TouchBuyLimitPoolStore(ZarrStore):
         if end is None:
             end = self._adjust_timestamp(arrow.now().date())
 
-        logger.info("building buy limit pool on %s...", end)
+        if tf.date2int(end) in self.pooled:
+            return await self.get(end)
+
+        logger.info("building touch buy limit pool on %s...", end)
         secs = (
             await Security.select()
             .types(["stock"])
@@ -98,11 +116,20 @@ class TouchBuyLimitPoolStore(ZarrStore):
                 result.append(r)
 
         records = np.array(result, dtype=self.dtype)
-        self.save(end, records)
+
+        if end != arrow.now().date():
+            self.save(records)
+
         return records
 
-    def status(self):
-        return sorted(self._store.array_keys())
+    @property
+    def pooled(self):
+        try:
+            pooled = self.store.attrs.get("pooled", [])
+        except KeyError:
+            pooled = []
+
+        return pooled
 
     async def query(self, timestamp: datetime.date, code: str):
         pool = await self.get(self._adjust_timestamp(timestamp))

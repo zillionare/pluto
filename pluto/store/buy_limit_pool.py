@@ -32,7 +32,7 @@ class BuyLimitPoolStore(ZarrStore):
 
     def save(self, timestamp: datetime.date, pool):
         key = f"{self.win}/{timestamp.year:04}-{timestamp.month:02}-{timestamp.day:02}"
-        self._store[key] = pool
+        super().save(key, pool)
 
     def _adjust_timestamp(self, timestamp: datetime.date) -> datetime.date:
         if tf.is_trade_day(timestamp) and datetime.datetime.now().hour < 15:
@@ -45,7 +45,7 @@ class BuyLimitPoolStore(ZarrStore):
 
         key = f"{self.win}/{timestamp.year:04}-{timestamp.month:02}-{timestamp.day:02}"
         try:
-            return self._store[key]
+            return super().get(key)
         except KeyError:
             return await self.pooling(end=timestamp)
 
@@ -114,7 +114,7 @@ class BuyLimitPoolStore(ZarrStore):
         return records
 
     def status(self):
-        return sorted(self._store.array_keys())
+        return sorted(self.store.array_keys())
 
     async def query(self, timestamp: datetime.date, code: str):
         pool = await self.get(self._adjust_timestamp(timestamp))
