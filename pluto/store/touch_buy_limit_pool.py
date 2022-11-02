@@ -7,8 +7,9 @@ from typing import Optional, Tuple
 import arrow
 import numpy as np
 from coretypes import FrameType
+from numpy.typing import NDArray
 from omicron import tf
-from omicron.extensions import price_equal
+from omicron.extensions import math_round, price_equal
 from omicron.models.security import Security
 from omicron.models.stock import Stock
 
@@ -16,21 +17,34 @@ from pluto.store.base import ZarrStore
 
 logger = logging.getLogger(__name__)
 
+"""touch_buy_limit_pool的存储结构，包括name, code, date, upper_line, max_adv, hit等字段
+"""
+touch_pool_dtype = np.dtype(
+    [
+        ("name", "<U16"),  # 股票名
+        ("code", "<U16"),  # 股票代码
+        ("date", "datetime64[s]"),  # 触及涨停日期
+        ("upper_line", "f4"),  # 上影线
+        ("max_adv", "f4"),  # 最大涨幅
+        ("hit", "i4"),  # 是否完全触及
+    ]
+)
+
 
 class TouchBuyLimitPoolStore(ZarrStore):
-    dtype = np.dtype(
-        [
-            ("name", "<U16"),
-            ("code", "<U16"),
-            ("date", "datetime64[s]"),
-            ("upper_line", "f4"),
-        ]
-    )
-
-    def __init__(self, path: str = None):
+    def __init__(self, path: str = None, thresh=0.985):
+        """
+        Args:
+            thresh: 当股份超过high_limit * thresh时即计入统计
+            path: 存储位置
+        """
+        self.thresh = thresh
         super().__init__(path)
 
     def save(self, records):
+        if len(records) == 0:
+            return
+
         date = records[-1]["date"].item().date()
         try:
             records = np.append(self.store, records)
@@ -45,6 +59,8 @@ class TouchBuyLimitPoolStore(ZarrStore):
         """避免存入非交易日数据"""
         if not tf.is_trade_day(timestamp):
             return tf.day_shift(timestamp, 0)
+        else:
+            return timestamp
 
     async def get(self, timestamp: datetime.date):
         if tf.date2int(timestamp) not in self.pooled:
@@ -67,31 +83,53 @@ class TouchBuyLimitPoolStore(ZarrStore):
             end: 截止时间
 
         Returns:
-            如果存在涨停，则返回(name, code, 涨停时间(30MIN为单位), 上引线百分比)
+            如果存在涨停，则返回(name, code, 涨停时间(30MIN为单位), 上引线百分比,最大涨幅,是否触板)
         """
-
         try:
             prices = await Stock.get_trade_price_limits(code, end, end)
             if len(prices) == 0:
                 return None
 
-            high_limit = prices["high_limit"][0]
-            start = tf.combine_time(end, 10)
+            high_limit = math_round(prices["high_limit"][0].item(), 2)
+            start = tf.combine_time(tf.day_shift(end, -1), 15)
             end_time = tf.combine_time(end, 15)
             bars = await Stock.get_bars_in_range(
                 code, FrameType.MIN30, start=start, end=end_time
             )
-            close = bars["close"][-1]
-            opn = bars["open"][0]
-            for i in range(len(bars)):
-                limit_signal = price_equal(bars["high"][i], high_limit)
-                if limit_signal and (not price_equal(close, high_limit)):
-                    name = await Security.alias(code)
-                    upper_line = high_limit / max(close, opn) - 1
-                    return (name, code, bars["frame"][i].item(), upper_line)
+
+            frames = bars["frame"]
+            if frames[0].item().date() != tf.day_shift(end, -1):
+                return None
+
+            c1 = math_round(bars["close"][0], 2)
+            bars = bars[1:]
+
+            close = math_round(bars["close"][-1], 2)
+            opn = math_round(bars["open"][0], 2)
+            idx = np.argmax(bars["high"])
+            high = math_round(bars["high"][idx], 2)
+            if high >= high_limit * self.thresh and not price_equal(close, high_limit):
+                name = await Security.alias(code)
+                upper_line = high / max(close, opn) - 1
+                max_adv = high / c1 - 1
+                if price_equal(high, high_limit):
+                    hit_flag = True
+                else:
+                    hit_flag = False
+
+                return (
+                    name,
+                    code,
+                    bars["frame"][idx].item(),
+                    upper_line,
+                    max_adv,
+                    hit_flag,
+                )
 
         except Exception as e:
             logger.exception(e)
+
+        return None
 
     async def pooling(self, end: datetime.date = None):
         if end is None:
@@ -115,7 +153,7 @@ class TouchBuyLimitPoolStore(ZarrStore):
             if r is not None:
                 result.append(r)
 
-        records = np.array(result, dtype=self.dtype)
+        records = np.array(result, dtype=touch_pool_dtype)
 
         if end != arrow.now().date():
             self.save(records)
@@ -124,6 +162,7 @@ class TouchBuyLimitPoolStore(ZarrStore):
 
     @property
     def pooled(self):
+        """返回已进行触及涨停特征提取的交易日列表"""
         try:
             pooled = self.store.attrs.get("pooled", [])
         except KeyError:
@@ -131,6 +170,24 @@ class TouchBuyLimitPoolStore(ZarrStore):
 
         return pooled
 
-    async def query(self, timestamp: datetime.date, code: str):
+    async def query(
+        self, timestamp: datetime.date, code: str = None, hit_flag=True
+    ) -> NDArray[touch_pool_dtype]:
+        """查询某日触板股票情况
+
+        Args:
+            timestamp: 日期
+            code: 如果未传入，则返回当天所有触板股票
+            hit_flag: 如果为None，则返回当天完全触板及尝试触板的股票.
+
+        Returns:
+            类型为_dtype的numpy structured array
+        """
         pool = await self.get(self._adjust_timestamp(timestamp))
-        return pool[pool["code"] == code]
+        if code is not None:
+            pool = pool[pool["code"] == code]
+
+        if hit_flag is not None:
+            return pool[(pool["hit"] == hit_flag)]
+        else:
+            return pool

@@ -13,7 +13,7 @@ from pluto.config import get_config_dir
 from pluto.store.touch_buy_limit_pool import TouchBuyLimitPoolStore
 
 
-class StoreTest(unittest.IsolatedAsyncioTestCase):
+class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         os.environ[cfg4py.envar] = "DEV"
         cfg4py.init(get_config_dir())
@@ -28,7 +28,8 @@ class StoreTest(unittest.IsolatedAsyncioTestCase):
         return await super().asyncTearDown()
 
     @pytest.mark.skipif(os.environ.get("IS_GITHUB"), reason="本测试需要omicron数据，只能在本地运行")
-    async def test_store(self):
+    async def test_pooling(self):
+        # this also tests get/query
         store = TouchBuyLimitPoolStore("/tmp/pluto.zarr")
 
         with mock.patch(
@@ -54,15 +55,33 @@ class StoreTest(unittest.IsolatedAsyncioTestCase):
 
             self.assertListEqual([20221028], store.pooled)
 
-        # todo: 寻找一支在其它时间触及涨停的个股，通过store.pooled来验证当天的结果不存盘
-        now = datetime.datetime(2022, 10, 28)
+        now = datetime.datetime(2022, 11, 2)
         with mock.patch("arrow.now", return_value=now):
             with mock.patch(
-                "omicron.models.security.Query.eval", return_value=["003042.XSHE"]
+                "omicron.models.security.Query.eval", return_value=["600640.XSHG"]
             ):  # shold not be persisted
                 actual = await store.pooling(now.date())
-                self.assertEqual(actual[0]["name"], "中农联合")
-                self.assertAlmostEqual(actual[0]["upper_line"], 0.079, 3)
+                self.assertEqual(actual[0]["name"], "国脉文化")
+                self.assertAlmostEqual(actual[0]["upper_line"], 0.0225, 3)
                 self.assertListEqual([20221028], store.pooled)
 
-                self.assertListEqual([20221028], store.pooled)
+                actual = await store.query(now, "600640.XSHG", None)
+                self.assertEqual(actual[0]["name"], "国脉文化")
+
+                actual = await store.query(
+                    datetime.date(2022, 10, 28), "600640.XSHG", None
+                )
+                self.assertTrue(len(actual) == 0)
+
+                actual = await store.query(now, hit_flag=False)
+                self.assertTrue(len(actual) == 0)
+
+                actual = await store.query(now, hit_flag=True)
+                self.assertTrue(len(actual) == 1)
+
+        with mock.patch(
+            "omicron.models.security.Query.eval", return_value=["002253.XSHE"]
+        ):
+            actual = await store.query(datetime.date(2022, 10, 24), hit_flag=False)
+            self.assertTrue(len(actual) == 1)
+            self.assertEqual(actual[0]["name"], "川大智胜")
