@@ -110,8 +110,9 @@ def ma_support_prices(mas: Dict[int, np.array], c0: float) -> Dict[int, float]:
             pred_prices[win] = None
             continue
 
-        pred_ma, (_, vx) = predict_next_ma(ma, win)
+        pred_ma, extra = predict_next_ma(ma, win)
         if pred_ma is not None:
+            vx, _ = extra
             vx = min(max(round(vx), 0), 6)
 
             if pred_ma < ma[vx] or pred_ma > c0:
