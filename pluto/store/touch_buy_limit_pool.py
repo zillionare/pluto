@@ -46,6 +46,7 @@ class TouchBuyLimitPoolStore(ZarrStore):
             return
 
         date = records[-1]["date"].item().date()
+        logger.info("save pool for day %s", date)
         try:
             records = np.append(self.store, records)
         except KeyError:  # the very first time
@@ -171,23 +172,32 @@ class TouchBuyLimitPoolStore(ZarrStore):
         return pooled
 
     async def query(
-        self, timestamp: datetime.date, code: str = None, hit_flag=True
+        self, start: datetime.date, code: str = None, hit_flag=True, end=None
     ) -> NDArray[touch_pool_dtype]:
         """查询某日触板股票情况
 
         Args:
-            timestamp: 日期
+            start: 起始日期
             code: 如果未传入，则返回当天所有触板股票
             hit_flag: 如果为None，则返回当天完全触板及尝试触板的股票.
+            end: 结束日期，如果不传入，则为最后一个交易日。
 
         Returns:
             类型为_dtype的numpy structured array
         """
-        pool = await self.get(self._adjust_timestamp(timestamp))
-        if code is not None:
-            pool = pool[pool["code"] == code]
+        end = end or arrow.now().date()
+        results = np.array([], dtype=touch_pool_dtype)
 
-        if hit_flag is not None:
-            return pool[(pool["hit"] == hit_flag)]
-        else:
-            return pool
+        for date in tf.get_frames(start, end, FrameType.DAY):
+            date = tf.int2date(date)
+            pool = await self.get(date)
+
+            if code is not None:
+                pool = pool[pool["code"] == code]
+
+            if hit_flag is not None:
+                results = np.append(results, pool[(pool["hit"] == hit_flag)])
+            else:
+                results = np.append(results, pool)
+
+        return results

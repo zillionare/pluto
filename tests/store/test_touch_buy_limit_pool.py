@@ -59,7 +59,7 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch("arrow.now", return_value=now):
             with mock.patch(
                 "omicron.models.security.Query.eval", return_value=["600640.XSHG"]
-            ):  # shold not be persisted
+            ):  # should not be persisted
                 actual = await store.pooling(now.date())
                 self.assertEqual(actual[0]["name"], "国脉文化")
                 self.assertAlmostEqual(actual[0]["upper_line"], 0.0225, 3)
@@ -69,11 +69,15 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(actual[0]["name"], "国脉文化")
 
                 actual = await store.query(
-                    datetime.date(2022, 10, 28), "600640.XSHG", None
+                    datetime.date(2022, 10, 28),
+                    "600640.XSHG",
+                    end=datetime.date(2022, 10, 28),
                 )
                 self.assertTrue(len(actual) == 0)
 
-                actual = await store.query(now, hit_flag=False)
+                actual = await store.query(
+                    datetime.date(2022, 10, 28), hit_flag=False, end=now
+                )
                 self.assertTrue(len(actual) == 0)
 
                 actual = await store.query(now, hit_flag=True)
