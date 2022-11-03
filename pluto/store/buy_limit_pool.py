@@ -114,7 +114,7 @@ class BuyLimitPoolStore(ZarrStore):
         return records
 
     def status(self):
-        return sorted(self.store.array_keys())
+        return sorted(self.data.array_keys())
 
     async def query(self, timestamp: datetime.date, code: str):
         pool = await self.get(self._adjust_timestamp(timestamp))

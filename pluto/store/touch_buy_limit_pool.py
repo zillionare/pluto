@@ -41,20 +41,20 @@ class TouchBuyLimitPoolStore(ZarrStore):
         self.thresh = thresh
         super().__init__(path)
 
-    def save(self, records):
+    def save(self, end, records):
         if len(records) == 0:
             return
 
-        date = records[-1]["date"].item().date()
-        logger.info("save pool for day %s", date)
+        logger.info("save pool for day %s", end)
         try:
-            records = np.append(self.store, records)
+            records = np.append(self.data, records)
         except KeyError:  # the very first time
             pass
-        super().save("/", records)
-        pooled = self.store.attrs.get("pooled", [])
-        pooled.append(tf.date2int(date))
-        self.store.attrs["pooled"] = pooled
+
+        super().append(records)
+        pooled = self.data.attrs.get("pooled", [])
+        pooled.append(tf.date2int(end))
+        self.data.attrs["pooled"] = pooled
 
     def _adjust_timestamp(self, timestamp: datetime.date) -> datetime.date:
         """避免存入非交易日数据"""
@@ -70,9 +70,9 @@ class TouchBuyLimitPoolStore(ZarrStore):
             start = tf.combine_time(timestamp, 0)
             end = tf.combine_time(timestamp, 15)
             idx = np.argwhere(
-                (self.store["date"] >= start) & (self.store["date"] < end)
+                (self.data["date"] >= start) & (self.data["date"] < end)
             ).flatten()
-            return self.store[idx]
+            return self.data[idx]
 
     async def extract_touch_buy_limit_features(
         self, code: str, end: datetime.date
@@ -139,7 +139,11 @@ class TouchBuyLimitPoolStore(ZarrStore):
         if tf.date2int(end) in self.pooled:
             return await self.get(end)
 
-        logger.info("building touch buy limit pool on %s...", end)
+        logger.info(
+            "building touch buy limit pool on %s, currently pooled: %s",
+            end,
+            self.pooled,
+        )
         secs = (
             await Security.select()
             .types(["stock"])
@@ -157,7 +161,7 @@ class TouchBuyLimitPoolStore(ZarrStore):
         records = np.array(result, dtype=touch_pool_dtype)
 
         if end != arrow.now().date():
-            self.save(records)
+            self.save(end, records)
 
         return records
 
@@ -165,8 +169,9 @@ class TouchBuyLimitPoolStore(ZarrStore):
     def pooled(self):
         """返回已进行触及涨停特征提取的交易日列表"""
         try:
-            pooled = self.store.attrs.get("pooled", [])
-        except KeyError:
+            pooled = self.data.attrs.get("pooled", [])
+        except KeyError as e:
+            logger.exception(e)
             pooled = []
 
         return pooled
