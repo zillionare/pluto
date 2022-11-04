@@ -4,6 +4,7 @@ import shutil
 import unittest
 from unittest import mock
 
+import arrow
 import cfg4py
 import omicron
 import pytest
@@ -91,10 +92,13 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(actual[0]["name"], "川大智胜")
 
         # 测试连续多天pooling
-        with mock.patch(
-            "omicron.models.security.Query.eval",
-            return_value=["600640.XSHG", "000505.XSHE"],
-        ):
-            for date in (datetime.date(2022, 10, 31), datetime.date(2022, 10, 28)):
-                await store.pooling(date)
-            self.assertListEqual([20221028, 20221024, 20221031], store.pooled)
+        with mock.patch("arrow.now", return_value=arrow.get("2022-11-03")):
+            with mock.patch(
+                "omicron.models.security.Query.eval",
+                return_value=["600640.XSHG", "000505.XSHE"],
+            ):
+                for date in (datetime.date(2022, 10, 31), datetime.date(2022, 10, 28)):
+                    await store.pooling(date)
+                self.assertListEqual(
+                    [20221028, 20221024, 20221103, 20221031], store.pooled
+                )
