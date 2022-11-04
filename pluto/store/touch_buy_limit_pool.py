@@ -46,12 +46,8 @@ class TouchBuyLimitPoolStore(ZarrStore):
             return
 
         logger.info("save pool for day %s", end)
-        try:
-            records = np.append(self.data, records)
-        except KeyError:  # the very first time
-            pass
-
         super().append(records)
+
         pooled = self.data.attrs.get("pooled", [])
         pooled.append(tf.date2int(end))
         self.data.attrs["pooled"] = pooled

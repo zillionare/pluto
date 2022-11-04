@@ -35,7 +35,7 @@ class ZarrStore(object):
         else:
             key = f"{self.__class__.__name__.lower()}"
 
-        if key in self._store:
+        if self._store.get(key):
             self._store[key].append(records)
         else:
             self._store[key] = records
