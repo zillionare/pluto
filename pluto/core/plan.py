@@ -17,7 +17,7 @@ def magic_numbers(close: float, opn: float, low: float) -> List[float]:
     猜测支撑价主要使用整数位和均线位。
 
     Example:
-        >>> guess_support_prices(9.3, 9.3, 9.1)
+        >>> magic_numbers(9.3, 9.3, 9.1)
         [8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0, 9.3, 9.1]
 
     Args:
@@ -52,7 +52,7 @@ def magic_numbers(close: float, opn: float, low: float) -> List[float]:
 
 def predict_next_ma(
     ma: Iterable[float], win: int, err_thresh: float = 3e-3
-) -> Tuple[float, float]:
+) -> Tuple[float, Tuple]:
     """预测下一个均线值。
 
     对于短均线如(5, 10, 20, 30),我们使用二阶拟合，如果不能拟合，则返回None, None
@@ -85,7 +85,7 @@ def predict_next_ma(
         pred_ma = math_round(ma_hat[-1], 2)
         return pred_ma, (a,)
 
-    return None, None
+    return None, ()
 
 
 def ma_support_prices(mas: Dict[int, np.array], c0: float) -> Dict[int, float]:
@@ -114,8 +114,9 @@ def ma_support_prices(mas: Dict[int, np.array], c0: float) -> Dict[int, float]:
             pred_prices[win] = None
             continue
 
-        pred_ma, (_, vx) = predict_next_ma(ma, win)
+        pred_ma, extra = predict_next_ma(ma, win)
         if pred_ma is not None:
+            vx, _ = extra
             vx = min(max(round(vx), 0), 6)
 
             if pred_ma < ma[vx] or pred_ma > c0:
