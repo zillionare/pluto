@@ -193,3 +193,16 @@ class BuyLimitPoolStore(ZarrStore):
         idx = np.argwhere((self.data["date"] >= start) & (self.data["date"] <= end))
         records = self.data[idx.flatten()]
         return self._calc_stats(records[records["code"] == code], frames)
+
+    def find_raw_recs_by_code(
+        self, code: str, start: datetime.date, end: datetime.date = None
+    ) -> NDArray:
+        """查找`code`在`[start, end]`区间的涨停原始记录"""
+        idx = np.argwhere(self.data["code"] == code).flatten()
+        recs = self.data[idx]
+        recs = recs[
+            (recs["date"] >= tf.date2int(start)) & (recs["date"] <= tf.date2int(end))
+        ]
+
+        recs = [(item[0], tf.int2date(item[1])) for item in recs]
+        return np.array(recs, dtype=np.dtype([("code", "U16"), ("date", "O")]))
