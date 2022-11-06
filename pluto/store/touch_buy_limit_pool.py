@@ -52,12 +52,17 @@ class TouchBuyLimitPoolStore(ZarrStore):
         pooled.append(tf.date2int(end))
         self.data.attrs["pooled"] = pooled
 
-    def _adjust_timestamp(self, timestamp: datetime.date) -> datetime.date:
-        """避免存入非交易日数据"""
-        if not tf.is_trade_day(timestamp):
-            return tf.day_shift(timestamp, 0)
+    def _day_closed(self, timestamp: datetime.date) -> datetime.date:
+        """给定`timestamp`，返回已结束的交易日"""
+        now = datetime.datetime.now()
+        if (
+            tf.is_trade_day(timestamp)
+            and timestamp == now.date()
+            and datetime.datetime.now().hour < 15
+        ):
+            return tf.day_shift(timestamp, -1)
         else:
-            return timestamp
+            return tf.day_shift(timestamp, 0)
 
     async def get(self, timestamp: datetime.date):
         if tf.date2int(timestamp) not in self.pooled:
@@ -130,7 +135,7 @@ class TouchBuyLimitPoolStore(ZarrStore):
 
     async def pooling(self, end: datetime.date = None):
         if end is None:
-            end = self._adjust_timestamp(arrow.now().date())
+            end = self._day_closed(arrow.now().date())
 
         if tf.date2int(end) in self.pooled:
             return await self.get(end)
