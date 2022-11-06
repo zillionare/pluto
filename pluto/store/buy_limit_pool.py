@@ -67,48 +67,53 @@ class BuyLimitPoolStore(ZarrStore):
         """返回已进行涨停特征提取的交易日列表"""
         try:
             pooled = self.data.attrs.get("pooled", [])
-        except KeyError as e:
-            logger.exception(e)
+        except KeyError:
             pooled = []
 
         return pooled
 
-    def _adjust_timestamp(self, timestamp: datetime.date) -> datetime.date:
+    def _day_closed(self, timestamp: datetime.date) -> datetime.date:
+        """给定`timestamp`，返回已结束的交易日"""
         if tf.is_trade_day(timestamp) and datetime.datetime.now().hour < 15:
             return tf.day_shift(timestamp, -1)
         else:
             return tf.day_shift(timestamp, 0)
 
     async def pooling(self, start: datetime.date, end: datetime.date = None):
-        if end is None:
-            end = self._adjust_timestamp(arrow.now().date())
+        """采集`[start, end]`期间涨跌停数据并存盘。
+
+        Args:
+            start: 起始日期
+            end: 结束日期。如果结束日期为交易日且未收盘，只统计到前一个交易日
+        """
+        end = self._day_closed(end or arrow.now().date())
 
         logger.info("building buy limit pool from %s - %s...", start, end)
-        secs = await Security.select().types(["stock"]).exclude_st().eval()
-        records = []
+        secs = await Security.select().types(["stock"]).eval()
+        to_persisted = []
+
         frames = tf.get_frames(start, end, FrameType.DAY)
-        for sec in secs:
-            flags = await Stock.trade_price_limit_flags(sec, start, end)
-            if flags is None or len(flags) == 0:
+
+        for i, sec in enumerate(secs):
+            if i + 1 % 500 == 0:
+                logger.info("progress: %s of %s", i + 1, len(secs))
+
+            flags = await Stock.trade_price_limit_flags_ex(sec, start, end)
+            if len(flags) == 0:
                 continue
 
-            flags, _ = flags
-            if len(flags) != len(frames):
-                logger.warning(
-                    "%s: length of flags(%s) is not same size as frames(%s)",
-                    sec,
-                    len(flags),
-                    len(frames),
-                )
-                continue
+            for frame, (flag, _) in flags.items():
+                if not flag:
+                    continue
 
-            for frame, flag in zip(frames, flags):
-                if flag and frame not in self.pooled:
-                    records.append((sec, frame))
+                # 有可能该frame已经存储过，此处避免存入重复的数据
+                frame = tf.date2int(frame)
+                if frame not in self.pooled:
+                    to_persisted.append((sec, frame))
 
-        records = np.array(records, dtype=self.dtype)
+        records = np.array(to_persisted, dtype=self.dtype)
+        frames = tf.get_frames(start, end, FrameType.DAY)
         self.save(records, frames)
-        return records
 
     def count_continous(self, records, frames: List[int]) -> int:
         """找出最长的连续板个数"""
