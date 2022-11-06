@@ -41,7 +41,7 @@ from pluto.store.base import ZarrStore
 logger = logging.getLogger(__name__)
 
 buylimitquery_dtype = np.dtype(
-    [("code", "<U16"), ("total", "i4"), ("continuous", "i4"), ("last", "datetime64[D]")]
+    [("code", "<U16"), ("total", "i4"), ("continuous", "i4"), ("last", "O")]
 )
 
 
@@ -74,7 +74,12 @@ class BuyLimitPoolStore(ZarrStore):
 
     def _day_closed(self, timestamp: datetime.date) -> datetime.date:
         """给定`timestamp`，返回已结束的交易日"""
-        if tf.is_trade_day(timestamp) and datetime.datetime.now().hour < 15:
+        now = datetime.datetime.now()
+        if (
+            tf.is_trade_day(timestamp)
+            and timestamp == now.date()
+            and datetime.datetime.now().hour < 15
+        ):
             return tf.day_shift(timestamp, -1)
         else:
             return tf.day_shift(timestamp, 0)
