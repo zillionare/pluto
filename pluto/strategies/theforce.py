@@ -27,7 +27,6 @@ class TheForceStrategy(BaseStrategy):
     ]
 
     index_eigens = [[]]
-
     amplitude_eigens = [[]]
 
     def __init__(self, thresh: float = 0.95):
