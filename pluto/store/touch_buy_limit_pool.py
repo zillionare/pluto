@@ -41,15 +41,21 @@ class TouchBuyLimitPoolStore(ZarrStore):
         self.thresh = thresh
         super().__init__(path)
 
-    def save(self, end, records):
+    def save(self, date: datetime.date, records):
         if len(records) == 0:
             return
 
-        logger.info("save pool for day %s", end)
+        try:
+            if tf.date2int(date) in self.pooled:
+                return
+        except KeyError:
+            pass
+
+        logger.info("save pool for day %s", date)
         super().append(records)
 
         pooled = self.data.attrs.get("pooled", [])
-        pooled.append(tf.date2int(end))
+        pooled.append(tf.date2int(date))
         self.data.attrs["pooled"] = pooled
 
     def _day_closed(self, timestamp: datetime.date) -> datetime.date:
@@ -171,8 +177,7 @@ class TouchBuyLimitPoolStore(ZarrStore):
         """返回已进行触及涨停特征提取的交易日列表"""
         try:
             pooled = self.data.attrs.get("pooled", [])
-        except KeyError as e:
-            logger.exception(e)
+        except KeyError:
             pooled = []
 
         return pooled
