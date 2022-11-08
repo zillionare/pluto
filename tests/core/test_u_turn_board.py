@@ -4,6 +4,7 @@ import unittest
 
 import numpy as np
 import omicron
+import pytest
 from coretypes import FrameType
 from omicron.models.security import Security
 from omicron.models.stock import Stock
