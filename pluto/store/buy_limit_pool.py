@@ -99,6 +99,12 @@ class BuyLimitPoolStore(ZarrStore):
 
         frames = tf.get_frames(start, end, FrameType.DAY)
 
+        missed = set(frames) - set(self.pooled)
+        if len(missed) == 0:
+            return
+
+        start = tf.int2date(min(missed))
+        end = tf.int2date(max(missed))
         for i, sec in enumerate(secs):
             if i + 1 % 500 == 0:
                 logger.info("progress: %s of %s", i + 1, len(secs))

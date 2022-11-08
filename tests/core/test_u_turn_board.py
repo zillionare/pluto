@@ -1,6 +1,6 @@
 import datetime
+import os
 import unittest
-from unittest import mock
 
 import numpy as np
 import omicron
@@ -37,6 +37,7 @@ class TurnaroundStrategyTest(unittest.IsolatedAsyncioTestCase):
         exp = None
         self.assertEqual(actual, exp)
 
+    @pytest.mark.skipif(os.environ.get("IS_GITHUB"), reason="本测试不能在github上运行，缺乏数据")
     async def test_scan(self):
         frame = datetime.date(2022, 10, 26)
         codes = (
