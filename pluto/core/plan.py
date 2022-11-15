@@ -1,7 +1,11 @@
+import datetime
 from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
-from omicron.extensions import array_math_round, math_round
+import pandas as pd
+from coretypes import FrameType
+from omicron.extensions import math_round
+from omicron.models.stock import Stock
 from omicron.talib import polyfit
 
 
@@ -13,7 +17,7 @@ def magic_numbers(close: float, opn: float, low: float) -> List[float]:
     猜测支撑价主要使用整数位和均线位。
 
     Example:
-        >>> guess_support_prices(9.3, 9.3, 9.1)
+        >>> magic_numbers(9.3, 9.3, 9.1)
         [8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 9.0, 9.3, 9.1]
 
     Args:
@@ -48,7 +52,7 @@ def magic_numbers(close: float, opn: float, low: float) -> List[float]:
 
 def predict_next_ma(
     ma: Iterable[float], win: int, err_thresh: float = 3e-3
-) -> Tuple[float, float]:
+) -> Tuple[float, Tuple]:
     """预测下一个均线值。
 
     对于短均线如(5, 10, 20, 30),我们使用二阶拟合，如果不能拟合，则返回None, None
@@ -81,7 +85,7 @@ def predict_next_ma(
         pred_ma = math_round(ma_hat[-1], 2)
         return pred_ma, (a,)
 
-    return None, None
+    return None, ()
 
 
 def ma_support_prices(mas: Dict[int, np.array], c0: float) -> Dict[int, float]:
@@ -110,8 +114,9 @@ def ma_support_prices(mas: Dict[int, np.array], c0: float) -> Dict[int, float]:
             pred_prices[win] = None
             continue
 
-        pred_ma, (_, vx) = predict_next_ma(ma, win)
+        pred_ma, extra = predict_next_ma(ma, win)
         if pred_ma is not None:
+            vx, _ = extra
             vx = min(max(round(vx), 0), 6)
 
             if pred_ma < ma[vx] or pred_ma > c0:
@@ -145,3 +150,50 @@ def ma_support_prices(mas: Dict[int, np.array], c0: float) -> Dict[int, float]:
             pred_prices[win] = pred_ma
 
     return pred_prices
+
+
+def name2code(name):
+    """临时性用以计划的函数，需要添加到omicron"""
+    result = Stock.fuzzy_match(name)
+    if len(result) == 1:
+        return list(result.keys())[0]
+    else:
+        return None
+
+
+async def weekend_score(
+    name: str, start: datetime.date
+) -> Tuple[str, float, float, float, float]:
+    """用以每周末给当周所选股进行评价的函数
+
+    Args:
+        name: 股票名
+        start: 买入日期
+    """
+    code = name2code(name)
+    if code is None:
+        raise ValueError(f"股票名({name})错误")
+
+    bars = await Stock.get_bars_in_range(code, FrameType.DAY, start)
+    opn = bars["open"][0]
+    close = bars["close"][-1]
+    high = np.max(bars["high"])
+    returns = close / opn - 1
+    return name, opn, close, high, returns
+
+
+async def group_weekend_score(names: str, start: datetime.date):
+    """对一组同一时间买入的股票，计算到评估日（调用时）的表现"""
+    results = []
+    for name in names:
+        results.append(await weekend_score(name, start))
+
+    df = pd.DataFrame(results, columns=["股票", "开盘价", "周五收盘", "最高", "收盘收益"])
+    return df.style.format(
+        {
+            "开盘价": lambda x: f"{x:.2f}",
+            "周五收盘": lambda x: f"{x:.2f}",
+            "最高": lambda x: f"{x:.2f}",
+            "收盘收益": lambda x: f"{x:.1%}",
+        }
+    )

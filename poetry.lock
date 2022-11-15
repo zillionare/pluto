@@ -2063,7 +2063,7 @@ test = ["black (>=22.3.0,<23.0.0)", "flake8 (==3.8.4)", "flake8-docstrings (>=1.
 
 [[package]]
 name = "zillionare-omicron"
-version = "2.0.0a55"
+version = "2.0.0a56"
 description = "Core Library for Zillionare"
 category = "main"
 optional = false
@@ -2163,7 +2163,7 @@ test = ["pytest", "black", "isort", "flake8", "flake8-docstrings", "pytest-cov"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.9"
-content-hash = "d6781a54867d86dd81f049f107f1822fbf82eb5ba4917de2a9a3866e7ce5b3a7"
+content-hash = "7b34e8a50b8cd01599e3f0dc5e5ce6bfbd9be9706c47c9eef189639bcf625534"
 
 [metadata.files]
 aiofiles = [
@@ -3867,8 +3867,8 @@ zillionare-core-types = [
     {file = "zillionare_core_types-0.5.2.tar.gz", hash = "sha256:99ef98891a898248f9027272595678cae0ee5ae9e641259160dd2c94ad4a1491"},
 ]
 zillionare-omicron = [
-    {file = "zillionare-omicron-2.0.0a55.tar.gz", hash = "sha256:e7360e199a51dba81feef9151f636f246e0dff2e74257aeafd40f1e0b23d3a38"},
-    {file = "zillionare_omicron-2.0.0a55-py3-none-any.whl", hash = "sha256:c14ca48f163b51d7b97d0c38c335200cd9f1f7d3427d4edd11ea8d70248fd838"},
+    {file = "zillionare-omicron-2.0.0a56.tar.gz", hash = "sha256:0ba00a9ce4320848e611a4c6518d36cf5688ef4e8f8552f5ccafb267540597b9"},
+    {file = "zillionare_omicron-2.0.0a56-py3-none-any.whl", hash = "sha256:4c2080e895bc0ceb8d041b8b7cc21027ad84a38e2703e9ee4769fdbd0e087ff4"},
 ]
 zillionare-ths-boards = [
     {file = "zillionare-ths-boards-0.2.2.tar.gz", hash = "sha256:f76823d5a87a270d32ef535a8486381f6f69e8672fcc028a29fd90c229b7d1f8"},

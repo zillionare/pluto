@@ -26,6 +26,9 @@ class TheForceStrategy(BaseStrategy):
         # negative eigen goes here
     ]
 
+    index_eigens = [[]]
+    amplitude_eigens = [[]]
+
     def __init__(self, thresh: float = 0.95):
         """
 
