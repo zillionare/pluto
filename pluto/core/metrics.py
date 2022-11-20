@@ -7,6 +7,7 @@ from coretypes import bars_dtype
 from omicron import tf
 from omicron.extensions import price_equal
 from omicron.models.stock import Stock
+from omicron.talib import peaks_and_valleys
 
 logger = logging.getLogger(__name__)
 
@@ -150,3 +151,16 @@ def parallel_score(mas: Iterable[float]) -> float:
             count += 1
 
     return count / total
+
+
+def last_wave(ts: np.array, max_win: int = 60):
+    """返回顶点距离，以及波段涨跌幅
+
+    Args:
+        ts: 浮点数的时间序列
+        max_win: 在最大为`max_win`的窗口中检测波段。设置这个值是出于性能考虑，但也可能存在最后一个波段长度大于60的情况。
+    """
+    ts = ts[-max_win:]
+    pv = peaks_and_valleys(ts)
+    prev = np.argwhere(pv != 0).flatten()[-2]
+    return len(ts) - prev, ts[-1] / ts[prev] - 1

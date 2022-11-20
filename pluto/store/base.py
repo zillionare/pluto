@@ -10,7 +10,7 @@ class ZarrStore(object):
         self._store_path = (
             path
             or os.environ.get("pluto_store_path")
-            or os.path.join(cur_dir, "pluto.axzarr")
+            or os.path.join(cur_dir, "pluto.zarr")
         )
 
         self._store = zarr.open(self._store_path, mode="a")

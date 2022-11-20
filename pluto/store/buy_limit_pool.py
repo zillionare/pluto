@@ -63,8 +63,11 @@ class BuyLimitPoolStore(ZarrStore):
         self.data.attrs["pooled"] = pooled
 
     @property
-    def pooled(self):
-        """返回已进行涨停特征提取的交易日列表"""
+    def pooled(self) -> List[int]:
+        """返回已进行涨停特征提取的交易日列表。
+
+        注意这里返回的交易日为整数类型，即类似20221011。
+        """
         try:
             pooled = self.data.attrs.get("pooled", [])
         except KeyError:
