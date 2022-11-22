@@ -6,25 +6,26 @@ from coretypes import BarsArray
 from omicron.talib import pct_error
 
 
-def dom_pressure(bars: BarsArray, win: int) -> Tuple:
+def dom_pressure(bars: BarsArray, win: int, convexity: float = -3e-3) -> Tuple:
     """判断穹顶压力
 
     原理：
-    当最后七个收盘价均线向下拐头时， 对win = (10, 20,30)的均线进行拟合，
-    如果拟合误差小于3e-3，且当前处于右侧，则如果日线或者30分钟线上冲不过，
+    当最后七个收盘价均线向下拐头时， 对窗口为win的均线进行拟合，
+    如果拟合误差小于3e-3，最后一个bar的收盘价低于穹顶，
     视为压力确认有效。close以低于ma为主，且至少一个bar的high高于ma,确认压力。
 
     Args:
-    bars: 具有时间序列的BarsArray, 其中必须包含收盘价，最高价，传入长度至少为37。
-    win: 均线参数，当win=10，计算参数为10的收盘价移动平均值的穹顶压力。
+    bars: 具有时间序列的BarsArray, 其中必须包含收盘价，最高价，传入长度至少为37
+    win: 均线窗口，win的值不超过30，当win=10，窗口为10的收盘价移动平均值的穹顶压力
+    convexity: 穹顶弧度限制，该数为负数，越小弧度越明显
 
     Returns:
-    返回Tuple：第一个为判断最后七个bar是否出现了穹顶压力的booling值，
-    第二个为最后七个bar的最高价是否冲过压力的booling list。
-    如果没有最后七个bars没有穹顶压力，或传入数据不足37个，返回None。
+    返回Tuple：第一个为判断最后七个bar是否出现了穹顶压力的Boolean值；
+    第二个为最后七个bar的最高价是否冲过压力的Boolean list。
+    最后七个bars没有穹顶压力，或传入数据不足37个，返回None。
 
     """
-
+    assert win <= 30, "传入均线窗口必须在30以内！"
     if len(bars) < 37:
         return None
 
@@ -40,13 +41,18 @@ def dom_pressure(bars: BarsArray, win: int) -> Tuple:
     p = np.poly1d(z)
     ma_hat = p(index)
     error = pct_error(ma, ma_hat)
-    argmax_ma_hat = np.argmax(ma_hat)
+    max_ma_hat = np.nanmax(ma_hat)
 
     # 二阶导：
     coef = list(p)
     convex = index * 6 * coef[0] + 2 * coef[1]
 
-    if (np.count_nonzero(convex < 0) > 5) and (error < 3e-3) and (argmax_ma_hat <= 4):
+    if (
+        (np.count_nonzero(convex < 0) > 5)
+        and (error < 3e-3)
+        and (cls[-1] < max_ma_hat)
+        and (np.mean(convex) < convexity)
+    ):
         hig_break = hig > ma
         hig_break_num = np.count_nonzero(hig_break)
         cls_under_num = np.count_nonzero(cls < ma)

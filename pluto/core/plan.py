@@ -3,7 +3,8 @@ from typing import Dict, Iterable, List, Tuple
 
 import numpy as np
 import pandas as pd
-from coretypes import FrameType
+import talib as ta
+from coretypes import BarsArray, FrameType
 from omicron.extensions import math_round
 from omicron.models.stock import Stock
 from omicron.talib import polyfit
@@ -38,9 +39,9 @@ def magic_numbers(close: float, opn: float, low: float) -> List[float]:
     upper = int((close // step) * step)
 
     if close >= 10:
-        for i in range(lower, upper, step):
-            numbers.append(i)
-            numbers.append(i + half_step)
+        for i in np.arange(lower, upper, step):
+            numbers.append(round(i, 1))
+            numbers.append(round(i + half_step, 1))
     else:
         for i in range(int(close * 9), int(close * 10)):
             if i / (10 * close) < 0.97 and i / (10 * close) > 0.9:
@@ -197,3 +198,120 @@ async def group_weekend_score(names: str, start: datetime.date):
             "收盘收益": lambda x: f"{x:.1%}",
         }
     )
+
+
+async def round_numbers(
+    price: float, limit_prices: Tuple[float, float]
+) -> Tuple[list, list]:
+    """该函数列出当前传入行情数据下的整数支撑，整数压力。
+    传入行情价格可以是日线级别，也可以是30分钟级别。
+    整数的含义不仅是以元为单位的整数，还有以角为单位的整数。
+
+    原理：
+        支撑位整数是跌停价到传入价格之间的五档整数。
+        压力位整数是传入价格价到涨停价之间的五档整数。
+        除此之外，0.5，5和50的倍数也是常用支撑压力位。
+
+    Example:
+        >>> round_numbers(10.23, 10.2, 10.56, 10.11)
+        ([9.9, 10.0, 10.1, 10.2], [10.6, 10.7, 10.8])
+
+    Args:
+        price: 传入的价格
+        limit_prices: 传入需要计算整数支撑和压力的当天涨跌停价格
+
+    Returns:
+        返回有两个元素的Tuple, 第一个为支撑数列， 第二个为压力数列。
+    """
+    low_limit = limit_prices[0]
+    high_limit = limit_prices[1]
+    mean_limit = (low_limit + high_limit) / 2
+    step = int(mean_limit) / 50  # 上下涨跌20%，再分10档，即2%左右为一档
+
+    # 根据传入的价格，100以内保留一位小数，大于100只保留整数位
+    if price < 100:
+        step_ints = np.around(np.arange(low_limit, high_limit + step, step), 1)
+        # 涨跌停价格之间0.5为倍数的所有数
+        int_low = low_limit - low_limit % 0.5 + 0.5
+        five_times = np.around(np.arange(int_low, high_limit, 0.5), 1)
+        total_int = np.append(step_ints, five_times)
+
+    elif 100 <= price < 1000:
+        step_ints = np.around(np.arange(low_limit, high_limit + step, step), 0)
+        # 涨跌停价格之间5为倍数的所有数
+        int_low = low_limit - low_limit % 5 + 5
+        five_times = np.around(np.arange(int_low, high_limit, 5), 1)
+        total_int = np.append(step_ints, five_times)
+
+    else:
+        step_ints = np.around(np.arange(low_limit, high_limit + step, step), 0)
+        # 涨跌停价格之间50为倍数的所有数
+        int_low = low_limit - low_limit % 50 + 50
+        five_times = np.around(np.arange(int_low, high_limit, 50), 1)
+        total_int = np.append(step_ints, five_times)
+
+    total_int = total_int[(total_int <= high_limit) & (total_int >= low_limit)]
+    total_int = np.append(low_limit, total_int)
+    total_int = np.append(total_int, high_limit)
+    total_int = np.unique(np.around(total_int, 2))
+
+    support_list = total_int[total_int < price]
+    resist_list = total_int[total_int > price]
+
+    return support_list, resist_list
+
+
+async def ma_sup_resist(code: str, bars: BarsArray) -> Tuple[dict, dict]:
+    """均线支撑、压力位与当前k线周期同步，即当k线为日线时，
+    使用日线均线计算；如果为30分钟，则使用30分钟均线；
+    对超过涨跌停的支撑、压力位不显示；当有多个支撑位时，
+    支撑位从上到下只显示3档；对压力位也是如此。
+
+    包含wins = [5, 10, 20, 30, 60, 90, 120, 250]的均线；
+    均线只有趋势向上才可做为支撑；
+    只返回传输行情数据的最后一天的支撑均线， 压力均线。
+
+    Args:
+        code: 股票代码
+        bars: 具有时间序列的行情数据，长度必须大于250。
+
+    Returns：
+        返回包含两个Dictionary类型的Tuple。
+        第一个为均线支撑的Dictionary：keys是均线的win, values是(对应win的最后一个均线值， 均线值/最低价-1)；
+        第二个为均线压力的Dictionary：keys是均线的win, values是(对应win的最后一个均线值， 均线值/最高价-1)。
+    """
+    assert len(bars) > 260, "Length of data must more than 260!"
+
+    close = bars["close"]
+    close = close.astype(np.float64)
+    frame = bars["frame"][-1]
+    low = bars["low"][-1]
+    high = bars["high"][-1]
+    open_ = bars["open"][-1]
+    high_body = max(close[-1], open_)
+    low_body = min(close[-1], open_)
+
+    date = frame.item()
+    limit_flag = await Stock.get_trade_price_limits(code, date, date)
+    high_limit = limit_flag["high_limit"].item()
+    low_limit = limit_flag["low_limit"].item()
+
+    wins = [5, 10, 20, 30, 60, 90, 120, 250]
+    ma_sups = {}
+    ma_resist = {}
+    for win in wins:
+        all_ma = ta.MA(close, win)
+        ma_trade = all_ma[-1] - all_ma[-5]
+        ma = all_ma[-1]
+        if (ma >= low_limit) and (ma <= low_body) and (ma_trade > 0):
+            ma_sups[win] = ma, ma / low - 1
+        elif (ma >= high_body) and (ma <= high_limit):
+            ma_resist[win] = ma, ma / high - 1
+
+    sorted_ma_sups = sorted(ma_sups.items(), key=lambda x: (x[1], x[0]), reverse=True)
+    selected_ma_sups = dict(sorted_ma_sups[:3])
+
+    sorted_ma_resist = sorted(ma_resist.items(), key=lambda x: (x[1], x[0]))
+    selected_ma_resists = dict(sorted_ma_resist[:3])
+
+    return selected_ma_sups, selected_ma_resists

@@ -91,7 +91,7 @@ class TouchBuyLimitPoolStore(ZarrStore):
             end: 截止时间
 
         Returns:
-            如果存在涨停，则返回(name, code, 涨停时间(30MIN为单位), 上引线百分比,最大涨幅,是否触板)
+            如果存在涨停，则返回(name, code, 涨停时间(30MIN为单位), 上引线百分比, 最大涨幅, 是否触板)
         """
         try:
             prices = await Stock.get_trade_price_limits(code, end, end)
