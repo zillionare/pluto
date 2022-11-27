@@ -4,10 +4,27 @@ from unittest import mock
 
 import numpy as np
 
-from pluto.core.metrics import parallel_score, vanilla_score
+from pluto.core.metrics import parallel_score, vanilla_score, adjust_close_at_pv
+import unittest
+import cfg4py
+import os
+import omicron
+from omicron.models.stock import Stock
+from coretypes import FrameType
+import datetime
+import numpy as np
 
 
 class MetricsTest(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        cfg4py.init(os.path.expanduser("~/zillionare/pluto"))
+        os.environ["all_proxy"] = ""
+        await omicron.init()
+
+    async def asyncTearDown(self) -> None:
+        await omicron.close()
+        return await super().asyncTearDown()
+
     async def test_vanilla_score(self):
         # 类型一：日线，检测当日未涨停
         code = "002380.XSHE"
@@ -966,3 +983,51 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
 
         mas = [1.4, 1.3, 1.1, 1.2, 1]
         self.assertAlmostEqual(0.9, parallel_score(mas))
+
+    async def test_adjust_close_with_pv(self):
+        bars = await Stock.get_bars(
+            "002782.XSHE", 70, FrameType.MIN30, end=datetime.datetime(2022, 11, 24, 15)
+        )
+
+        low, high, pvs = adjust_close_at_pv(bars, 0)
+        # fmt: off
+        low_exp = np.array([
+                18.81, 18.62, 18.59, 18.38, 18.49, 18.46, 18.89, 18.93, 19.08,
+                19.09, 19.16, 19.07, 19.2 , 19.35, 19.  , 19.09, 18.75, 18.95,
+                18.91, 18.98, 18.84, 18.85, 18.3 , 18.2 , 18.3 , 18.06, 18.09,
+                18.14, 18.19, 18.21, 18.45, 18.39, 18.32, 18.19, 17.91, 17.75,
+                17.75, 17.69, 17.5 , 18.27, 18.48, 18.92, 19.46, 19.46, 19.46,
+                19.46, 19.36, 19.17, 19.6 , 19.57, 19.48, 19.21, 19.43, 19.34,
+                18.86, 18.45, 19.17, 19.16, 19.27, 19.44, 19.47, 19.59, 19.4 ,
+                19.48, 19.39, 19.31, 19.16, 19.37, 19.29, 19.28
+            ], 
+            dtype=np.float32)
+        high_exp = np.array([
+                18.95, 18.62, 18.59, 18.42, 18.49, 18.46, 18.89, 18.93, 19.08,
+                19.09, 19.16, 19.07, 19.2 , 19.35, 19.8 , 19.09, 18.75, 18.95,
+                18.91, 18.98, 18.84, 18.85, 18.3 , 18.2 , 18.3 , 18.06, 18.09,
+                18.14, 18.19, 18.21, 18.45, 18.39, 18.32, 18.19, 17.91, 17.75,
+                17.75, 17.69, 17.73, 18.27, 18.48, 18.92, 19.46, 19.46, 19.46,
+                19.46, 19.86, 19.17, 19.6 , 19.57, 19.48, 19.21, 19.43, 19.34,
+                18.86, 18.73, 19.17, 19.16, 19.27, 19.44, 19.47, 19.59, 19.4 ,
+                19.48, 19.39, 19.31, 19.16, 19.37, 19.29, 19.42
+            ], dtype=np.float32)
+        pvs_exp = np.array([ 
+            1,  0,  0, -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,
+            0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+            0,  0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0,
+            0,  0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+            0,  1
+        ])
+        # fmt: on
+        np.testing.assert_array_almost_equal(low, low_exp, 2)
+        np.testing.assert_array_almost_equal(high, high_exp, 2)
+        np.testing.assert_array_equal(pvs_exp, pvs)
+
+        bars = await Stock.get_bars(
+            "002782.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 22, 10)
+        )
+
+        _, high, pvs = adjust_close_at_pv(bars, 1)
+        self.assertAlmostEqual(19.86, high[-1], 2)
+

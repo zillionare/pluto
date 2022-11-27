@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Zillionare Research Platform</title>
+    <link href="/dist/css/jquerysctipttop.css" rel="stylesheet" type="text/css">
+    <link rel="stylesheet" href="/dist/css/menu-style.css">
+    <link rel="stylesheet" href="/dist/css/bootstrap.css">
+    <link rel="stylesheet" href="/dist/css/all.min.css">
+    <script type="text/javascript" src="/dist/js/jquery.min.js"></script>
+    <script type="text/javascript" src="/dist/js/menu.js"></script>
+    <script type="text/javascript" src="/dist/js/datatable.js"></script>
+    <script type="text/javascript" src="/dist/js/bootstrap.js"></script>
+    <script type="text/javascript" src="/dist/js/common.js"></script>
+    <link rel="stylesheet" href="/dist/css/datatable.css">
+ <style>
+    .content { margin: 3rem; }
+    .lead { font-size: 1.5rem; font-weight: 300; }
+</style>
+</head>
+<body>
+    <script type="text/javascript">
+        function nav_to(page){
+            console.log("goto page: " + page)
+            localStorage.setItem("cur_page", page)
+            $("#main").load("/pages/" + page + ".html")
+        }
+        calendar = $.getJSON("/pluto/calendar")
+        $(document).ready(function(){
+            var page = localStorage.getItem("cur_page")
+            nav_to(page || "buylimit")
+        })
+    </script>
+    <!--wrapper start-->
+    <div class="wrapper">
+        <!--sidebar start-->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-menu">
+                <center class="profile">
+                    <img src="/dist/img/avatar.png" alt=""><p>jQueryScript</p>
+                </center>
+                <li class="item">
+                    <a href="" class="menu-btn"><i class="fas fa-desktop"></i><span>Dashboard</span></a>
+                </li>
+                <li class="item" id="profile">
+                    <a href="#profile" class="menu-btn">
+                        <i class="fas fa-user-circle"></i><span>股票池 <i class="fas fa-chevron-down drop-down"></i></span>
+                    </a>
+                    <div class="sub-menu">
+                        <a href="javascript: nav_to('buylimit')"><i class="fas fa-image"></i><span>涨停池</span></a>
+                        <a href="javascript: nav_to('steepslopes')"><i class="fas fa-address-card"></i><span>上升均线</span></a>
+                    </div>
+                </li>
+                <li class="item" id="messege">
+                    <a href="#messege" class="menu-btn">
+                        <i class="fas fa-envelope"></i><span>Messege <i class="fas fa-chevron-down drop-down"></i></span>
+                    </a>
+                    <div class="sub-menu">
+                        <a href="#"><i class="fas fa-envelope"></i><span>New</span></a>
+                        <a href="#"><i class="fas fa-envelope-square"></i><span>Sent</span></a>
+                        <a href="#"><i class="fas fa-exclamation-circle"></i><span>Spam</span></a>
+                    </div>
+                </li>
+                <li class="item" id="setting">
+                    <a href="#setting" class="menu-btn">
+                        <i class="fas fa-cog"></i><span>Setting <i class="fas fa-chevron-down drop-down"></i></span>
+                    </a>
+                    <div class="sub-menu">
+                        <a href="#"><i class="fas fa-lock"></i><span>Password</span></a>
+                        <a href="#"><i class="fas fa-language"></i><span>Language</span></a>
+                    </div>
+                </li>
+                <li class="item">
+                    <a href="" class="menu-btn"><i class="fas fa-info-circle"></i><span>About</span></a>
+                </li>
+            </div>
+        </div>
+        <!--sidebar end-->
+        <!--header menu start-->
+        <div class="header" id="header">
+            <div class="header-menu">
+                <div class="title"><span class="title-hide">jQuery<span class="sec-span">Script</span></span></div>
+                <div class="sidebar-btn">
+                    <i class="fas fa-bars"></i>
+                </div>
+                <ul>
+                    <li><a href=""><i class="fab fa-facebook-f"></i></a></li>
+                    <li><a href=""><i class="fab fa-twitter"></i></a></li>
+                    <li><a href=""><i class="fas fa-power-off"></i></a></li>
+                </ul>
+            </div>
+        </div>
+        <!--header menu end-->
+        <div class="main-container" id="main"></div>
+    </div>
+    <!--wrapper end-->
+</body>
+</html>

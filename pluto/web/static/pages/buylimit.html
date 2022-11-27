@@ -1,0 +1,62 @@
+<div class="container">
+    <div class="row pt-3 px-3">
+        <div class="col">
+            <p class="fs-3">涨停池查询</p>
+        </div>
+        <div class="col-2">
+            <button id="buylimit-pool-query"
+                type="button" 
+                class="btn btn-secondary h-50 fs-6 py-0 float-end">
+                重新查询
+            </button>
+        </div>
+    </div>
+    <hr class="border-1 border-top" style="margin-top: -1rem !important">
+    <p class="fw-lighter text-muted text-sm-end" id="buylimit-filter">查询条件</p>
+    <div id="content">
+        <div style="padding:20px">
+            <table id="stats" class="display" style="width:100%">
+                <thead>
+                    <tr>
+                        <th>股票</th>
+                        <th>代码</th>
+                        <th>涨停次数</th>
+                        <th>连板数</th>
+                        <th>最后涨停</th>
+                        <th>涨停至今</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>
+<script type="text/javascript">
+    function show_query_filters(){
+        var key = "buylimit.find_all.filter"
+        var filters = localStorage.getItem(key)
+        if (filters === null){
+            filters = {
+                "start": "20天前",
+                "end": today(),
+                "total_min": 1,
+                "total_max": 1,
+                "continuous_min": 1,
+                "continuous_max": 3,
+                "till_now": 10
+            }
+            localStorage.setItem(key, JSON.stringify(filters))
+        }else{
+            filters = JSON.parse(filters)
+        }
+        text = "查询条件：从" + filters["start"] + "-" + filters["end"] +
+            "涨停" + filters["total_min"] + "-" + filters["total_max"] + "次,连板" +
+            filters["continuous_min"] + "-" + filters["continuous_max"] + "次,距今" + filters["till_now"] + "天"
+        $('#buylimit-filter').text(text)
+    }
+    $(document).ready(function(){
+        $('#stats').DataTable({
+            ajax: '/data/buylimit_stats.txt',
+        });
+        show_query_filters()
+    })
+</script>

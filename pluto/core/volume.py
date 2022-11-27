@@ -4,6 +4,7 @@ from typing import Tuple
 import numpy as np
 from bottleneck import move_mean, move_sum
 from coretypes import BarsArray
+from omicron.extensions import top_n_argpos
 
 
 def volume_feature(volume: np.array) -> Tuple:
@@ -95,38 +96,39 @@ def top_volume_direction(bars: BarsArray, n: int = 10) -> Tuple[float, float]:
         4. 计算最大成交量与之后的所有成交量中，最大反向成交量的量比
 
     args:
-        bars: 行情数据，长度应该大于`2 * n`
+        bars: 行情数据
         n: 参与计算的周期。太长则影响到最大成交量的影响力。
 
     return:
         前一个元素表明最大成交量与之前`n`个成交量均值的量比，其符号表明是阳线还是阴线；后一个元素表明最大成交量与之后所有成交量中，最大异向成交量的量比。如果不存在异向成交量，则值为0。
 
     """
-    assert len(bars) >= 2 * n, "bars length should be greater than 2 * n"
-    bars_ = bars
 
     bars = bars[-n:]
     volume = bars["volume"]
 
-    flags = np.select((bars["close"] >= bars["open"],), [1], -1)
+    flags = np.select(
+        (bars["close"] > bars["open"], bars["close"] < bars["open"]), [1, -1], 0
+    )
 
-    imax = np.argmax(volume)
+    pmax = np.argmax(volume)
 
-    # 最大成交量前n个bar的均量
-    vmean = np.mean(bars_["volume"][imax - 2 * n : -n + imax])
+    # 移除3个最大成交量后的成交量均值
+    top_volume = np.sum(volume[top_n_argpos(volume, 3)])
+    vmean = (np.sum(volume[-n:]) - top_volume) / n
 
-    # 从最大成交量（含）起所有的成交量数据
-    vol = (volume * flags)[imax:]
+    # 最大成交量及之后的成交量
+    vol = (volume * flags)[pmax:]
     vmax = vol[0]
 
-    if flags[imax] == 1 and np.any(vol[1:] < 0):
-        vd = [vmax / vmean, np.min(vol) / vmax]
-    elif flags[imax] == -1 and np.any(vol[1:] > 0):
-        vd = [vmax / vmean, abs(np.max(vol) / vmax)]
+    if flags[pmax] == 1 and np.any(vol[1:] < 0):
+        vr = [vmax / vmean, np.min(vol) / vmax]
+    elif flags[pmax] == -1 and np.any(vol[1:] > 0):
+        vr = [vmax / vmean, abs(np.max(vol) / vmax)]
     else:
-        vd = [vmax / vmean, 0]
+        vr = [vmax / vmean, 0]
 
-    return vd
+    return vr
 
 
 def moving_net_volume(bars: BarsArray, win=5) -> np.array:

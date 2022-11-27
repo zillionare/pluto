@@ -3,7 +3,7 @@ from itertools import combinations
 from typing import Iterable, Tuple
 
 import numpy as np
-from coretypes import bars_dtype
+from coretypes import BarsArray, bars_dtype
 from omicron import tf
 from omicron.extensions import price_equal
 from omicron.models.stock import Stock
@@ -155,12 +155,78 @@ def parallel_score(mas: Iterable[float]) -> float:
 
 def last_wave(ts: np.array, max_win: int = 60):
     """返回顶点距离，以及波段涨跌幅
-
-    Args:
-        ts: 浮点数的时间序列
-        max_win: 在最大为`max_win`的窗口中检测波段。设置这个值是出于性能考虑，但也可能存在最后一个波段长度大于60的情况。
+    
+        Args:
+            ts: 浮点数的时间序列
+            max_win: 在最大为`max_win`的窗口中检测波段。设置这个值是出于性能考虑，但也可能存在最后一个波段长度大于60的情况。
     """
     ts = ts[-max_win:]
     pv = peaks_and_valleys(ts)
     prev = np.argwhere(pv != 0).flatten()[-2]
     return len(ts) - prev, ts[-1] / ts[prev] - 1
+
+def adjust_close_at_pv(
+    bars: BarsArray, flag: int
+) -> Tuple[np.array, np.array, np.array]:
+    """将close序列中的峰谷值替换成为对应的high/low。
+
+        通过指定flag为（-1， 0， 1）中的任一个，以决定进行何种替换。如果flag为-1，则将close中对应谷处的数据替换为low；如果flag为1，则将close中对应峰处的数据替换为high。如果为0，则返回两组数据。
+
+        最后，返回替换后的峰谷标志序列（1为峰，-1为谷）
+    Args:
+        bars: 输入的行情数据
+        flag: 如果为-1,表明只替换low; 如果为1，表明只替换high；如果为0，表明全换
+
+    Returns:
+        返回替换后的序列: 最低点替换为low之后的序列，最高点替换为high之后的序列，以及峰谷标记
+    """
+    close = bars["close"]
+    high = bars["high"]
+    low = bars["low"]
+
+    pvs = peaks_and_valleys(close)
+    last = pvs[-1]
+    # 如果最后的bar是从高往下杀，低于昨收，peaks_and_valleys会判为-1，此时可能要用high代替close
+    if high[-1] > close[-2] and last == -1:
+        pvs[-1] = 1
+
+    # 如果最后的bar是底部反转，高于昨收，peaks_and_valleys会判定为1，但此时仍然可能要用low代替close
+    if low[-1] < close[-2] and last == 1:
+        pvs[-1] = -1
+
+    for p in np.argwhere(pvs == 1).flatten():  # 对p前后各2元素检查谁最大
+        if p < 2:
+            pvs[p] = 0
+            i = np.argmax(high[:2])
+            pvs[i] = 1
+        elif p >= len(pvs) - 2:
+            pvs[p] = 0
+            i = np.argmax(high[-2:])
+            pvs[i - 2] = 1
+        else:
+            i = np.argmax(high[p - 2 : p + 3])
+            if i != 2:
+                pvs[p] = 0
+                pvs[p + i - 2] = 1
+
+    for v in np.argwhere(pvs == -1).flatten():
+        if v < 2:
+            pvs[v] = 0
+            i = np.argmin(low[:2])
+            pvs[i] = -1
+        elif v >= len(pvs) - 2:
+            pvs[v] = 0
+            i = np.argmin(low[-2:])
+            pvs[i - 2] = -1
+        else:
+            i = np.argmin(low[v - 2 : v + 3])
+            if i != 2:
+                pvs[v] = 0
+                pvs[v + i - 2] = -1
+
+    if flag == -1:
+        return np.where(pvs == -1, low, close), None, pvs
+    elif flag == 0:
+        return np.where(pvs == -1, low, close), np.where(pvs == 1, high, close), pvs
+    else:
+        return None, np.where(pvs == 1, high, close), pvs
