@@ -62,31 +62,6 @@ class BuyLimitPoolStore(ZarrStore):
         pooled.extend(dates)
         self.data.attrs["pooled"] = pooled
 
-    @property
-    def pooled(self) -> List[int]:
-        """返回已进行涨停特征提取的交易日列表。
-
-        注意这里返回的交易日为整数类型，即类似20221011。
-        """
-        try:
-            pooled = self.data.attrs.get("pooled", [])
-        except KeyError:
-            pooled = []
-
-        return pooled
-
-    def _day_closed(self, timestamp: datetime.date) -> datetime.date:
-        """给定`timestamp`，返回已结束的交易日"""
-        now = datetime.datetime.now()
-        if (
-            tf.is_trade_day(timestamp)
-            and timestamp == now.date()
-            and datetime.datetime.now().hour < 15
-        ):
-            return tf.day_shift(timestamp, -1)
-        else:
-            return tf.day_shift(timestamp, 0)
-
     async def pooling(self, start: datetime.date, end: datetime.date = None):
         """采集`[start, end]`期间涨跌停数据并存盘。
 
@@ -97,7 +72,14 @@ class BuyLimitPoolStore(ZarrStore):
         end = self._day_closed(end or arrow.now().date())
 
         logger.info("building buy limit pool from %s - %s...", start, end)
-        secs = await Security.select().types(["stock"]).eval()
+        secs = (
+            await Security.select()
+            .types(["stock"])
+            .exclude_cyb()
+            .exclude_kcb()
+            .exclude_st()
+            .eval()
+        )
         to_persisted = []
 
         frames = tf.get_frames(start, end, FrameType.DAY)
@@ -215,3 +197,9 @@ class BuyLimitPoolStore(ZarrStore):
 
         recs = [(item[0], tf.int2date(item[1])) for item in recs]
         return np.array(recs, dtype=np.dtype([("code", "U16"), ("date", "O")]))
+
+
+async def pooling_latest():
+    blp = BuyLimitPoolStore()
+    end = blp._day_closed(datetime.datetime.now().date())
+    await blp.pooling(end, end)

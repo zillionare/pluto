@@ -37,7 +37,7 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
             "omicron.models.security.Query.eval", return_value=["000032.XSHE"]
         ):
             await store.pooling(datetime.date(2022, 10, 28))
-            actual = await store.get(datetime.date(2022, 10, 28))
+            actual = store.get(datetime.date(2022, 10, 28))
             self.assertEqual(actual[0]["name"], "深桑达A")
             self.assertEqual(
                 actual[0]["date"].item().date(), datetime.date(2022, 10, 28)
@@ -56,18 +56,19 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
 
             self.assertListEqual([20221028], store.pooled)
 
-        now = datetime.datetime(2022, 11, 2)
-        with mock.patch("arrow.now", return_value=now):
+        with freeze_time('2022-11-02 11:03:00'):
+            now = datetime.date(2022, 11, 2)
             with mock.patch(
                 "omicron.models.security.Query.eval", return_value=["600640.XSHG"]
             ):  # should not be persisted
-                actual = await store.pooling(now.date())
+                actual = await store.pooling(now)
                 self.assertEqual(actual[0]["name"], "国脉文化")
-                self.assertAlmostEqual(actual[0]["upper_line"], 0.0225, 3)
+                self.assertAlmostEqual(actual[0]["upper_line"], 0.0378, 3)
                 self.assertListEqual([20221028], store.pooled)
 
+                # 没有持久化
                 actual = await store.query(now, "600640.XSHG", None)
-                self.assertEqual(actual[0]["name"], "国脉文化")
+                self.assertEqual(0, len(actual))
 
                 actual = await store.query(
                     datetime.date(2022, 10, 28),
@@ -81,18 +82,16 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
                 )
                 self.assertTrue(len(actual) == 0)
 
-                actual = await store.query(now, hit_flag=True)
-                self.assertTrue(len(actual) == 1)
-
         with mock.patch(
             "omicron.models.security.Query.eval", return_value=["002253.XSHE"]
         ):
+            await store.pooling(datetime.date(2022, 10, 24))
             actual = await store.query(datetime.date(2022, 10, 24), hit_flag=False)
             self.assertTrue(len(actual) == 1)
             self.assertEqual(actual[0]["name"], "川大智胜")
 
         # 测试连续多天pooling
-        with mock.patch("arrow.now", return_value=arrow.get("2022-11-03")):
+        with freeze_time("2022-11-03 14:30:00"):
             with mock.patch(
                 "omicron.models.security.Query.eval",
                 return_value=["600640.XSHG", "000505.XSHE"],
@@ -100,5 +99,5 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
                 for date in (datetime.date(2022, 10, 31), datetime.date(2022, 10, 28)):
                     await store.pooling(date)
                 self.assertListEqual(
-                    [20221028, 20221024, 20221103, 20221031], store.pooled
+                    [20221028, 20221024, 20221031], store.pooled
                 )

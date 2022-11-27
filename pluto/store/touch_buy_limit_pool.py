@@ -58,28 +58,16 @@ class TouchBuyLimitPoolStore(ZarrStore):
         pooled.append(tf.date2int(date))
         self.data.attrs["pooled"] = pooled
 
-    def _day_closed(self, timestamp: datetime.date) -> datetime.date:
-        """给定`timestamp`，返回已结束的交易日"""
-        now = datetime.datetime.now()
-        if (
-            tf.is_trade_day(timestamp)
-            and timestamp == now.date()
-            and datetime.datetime.now().hour < 15
-        ):
-            return tf.day_shift(timestamp, -1)
-        else:
-            return tf.day_shift(timestamp, 0)
-
-    async def get(self, timestamp: datetime.date):
+    def get(self, timestamp: datetime.date):
         if tf.date2int(timestamp) not in self.pooled:
-            return await self.pooling(timestamp)
-        else:
-            start = tf.combine_time(timestamp, 0)
-            end = tf.combine_time(timestamp, 15)
-            idx = np.argwhere(
-                (self.data["date"] >= start) & (self.data["date"] < end)
-            ).flatten()
-            return self.data[idx]
+            return None
+
+        start = tf.combine_time(timestamp, 0)
+        end = tf.combine_time(timestamp, 15)
+        idx = np.argwhere(
+            (self.data["date"] >= start) & (self.data["date"] < end)
+        ).flatten()
+        return self.data[idx]
 
     async def extract_touch_buy_limit_features(
         self, code: str, end: datetime.date
@@ -140,16 +128,16 @@ class TouchBuyLimitPoolStore(ZarrStore):
         return None
 
     async def pooling(self, end: datetime.date = None):
-        if end is None:
-            end = self._day_closed(arrow.now().date())
+        end = end or datetime.datetime.now().date()
 
         if tf.date2int(end) in self.pooled:
-            return await self.get(end)
+            logger.info("%s already pooled.", end)
+            return self.get(end)
 
         logger.info(
             "building touch buy limit pool on %s, currently pooled: %s",
             end,
-            self.pooled,
+            len(self.pooled),
         )
         secs = (
             await Security.select()
@@ -160,27 +148,18 @@ class TouchBuyLimitPoolStore(ZarrStore):
             .eval()
         )
         result = []
-        for sec in secs:
+        for i, sec in enumerate(secs):
+            if (i + 1) % 500 == 0:
+                logger.info("progress update: %s/%s", i + 1, len(secs))
             r = await self.extract_touch_buy_limit_features(sec, end)
             if r is not None:
                 result.append(r)
 
         records = np.array(result, dtype=touch_pool_dtype)
-
-        if end != arrow.now().date():
+        if end == self._day_closed(end):
             self.save(end, records)
 
         return records
-
-    @property
-    def pooled(self):
-        """返回已进行触及涨停特征提取的交易日列表"""
-        try:
-            pooled = self.data.attrs.get("pooled", [])
-        except KeyError:
-            pooled = []
-
-        return pooled
 
     async def query(
         self, start: datetime.date, code: str = None, hit_flag=True, end=None
@@ -201,7 +180,10 @@ class TouchBuyLimitPoolStore(ZarrStore):
 
         for date in tf.get_frames(start, end, FrameType.DAY):
             date = tf.int2date(date)
-            pool = await self.get(date)
+            pool = self.get(date)
+
+            if pool is None:
+                continue
 
             if code is not None:
                 pool = pool[pool["code"] == code]
