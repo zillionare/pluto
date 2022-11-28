@@ -56,7 +56,7 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
 
             self.assertListEqual([20221028], store.pooled)
 
-        with freeze_time('2022-11-02 11:03:00'):
+        with freeze_time("2022-11-02 11:03:00"):
             now = datetime.date(2022, 11, 2)
             with mock.patch(
                 "omicron.models.security.Query.eval", return_value=["600640.XSHG"]
@@ -98,6 +98,4 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
             ):
                 for date in (datetime.date(2022, 10, 31), datetime.date(2022, 10, 28)):
                     await store.pooling(date)
-                self.assertListEqual(
-                    [20221028, 20221024, 20221031], store.pooled
-                )
+                self.assertListEqual([20221028, 20221024, 20221031], store.pooled)

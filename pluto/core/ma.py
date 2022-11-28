@@ -11,9 +11,9 @@ def reverse_ma(ma, close):
 
 def predict_next_price(bars, win=10) -> Tuple[float, float]:
     """通过均线预测下一个bar的收盘价
-    
-        Returns:
-            预测的下一个收盘价和均线值。如果无法预测，返回None,None
+
+    Returns:
+        预测的下一个收盘价和均线值。如果无法预测，返回None,None
     """
     close = bars["close"]
 

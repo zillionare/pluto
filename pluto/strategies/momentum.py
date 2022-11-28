@@ -25,8 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def pct_change_by_m30(bars: BarsArray):
-    """根据30分钟行情计算出当天涨跌幅
-    """
+    """根据30分钟行情计算出当天涨跌幅"""
     today = bars[-1]["frame"].item().date()
     prev_day = tf.day_shift(today, -1)
     c1 = bars[bars["frame"] == tf.combine_time(prev_day, 15)][0]["close"]

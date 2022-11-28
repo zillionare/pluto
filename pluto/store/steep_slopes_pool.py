@@ -56,10 +56,10 @@ class SteepSlopesPool(ZarrStore):
 
     async def pooling(self, dt: datetime.date = None, n: int = 30):
         """采集`dt`期间(10, 20, 60)日均线最陡的记录
-        
-            Args:
-                dt: 日期
-                n:  取排列在前面的`n`条记录
+
+        Args:
+            dt: 日期
+            n:  取排列在前面的`n`条记录
         """
         if dt is None:
             dt = self._day_closed(datetime.datetime.now().date())

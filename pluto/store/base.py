@@ -53,7 +53,7 @@ class ZarrStore(object):
     @property
     def pooled(self) -> List[int]:
         """返回已进行涨停特征提取的交易日列表。
-        
+
         注意这里返回的交易日为整数类型，即类似20221011。
         """
         try:

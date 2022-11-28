@@ -1030,4 +1030,3 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
 
         _, high, pvs = adjust_close_at_pv(bars, 1)
         self.assertAlmostEqual(19.86, high[-1], 2)
-

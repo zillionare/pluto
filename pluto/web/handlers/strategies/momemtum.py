@@ -36,9 +36,7 @@ async def add_short_sample(code: str, frame: str, label: str):
     mom = MomemtumStrategy()
     try:
         size = await mom.add_short_sample(code, frame, label)
-        return response.json({
-            "size": size
-        })
+        return response.json({"size": size})
     except Exception as e:
         logger.exception(e)
         raise SanicException(str(e))
