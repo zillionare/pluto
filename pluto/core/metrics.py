@@ -5,15 +5,16 @@ from typing import Iterable, Tuple
 import numpy as np
 from coretypes import BarsArray, bars_dtype
 from omicron import tf
+from coretypes import FrameType
 from omicron.extensions import price_equal
 from omicron.models.stock import Stock
-from omicron.talib import peaks_and_valleys
+from omicron.talib import peaks_and_valleys, moving_average
 
 logger = logging.getLogger(__name__)
 
 
 async def vanilla_score(
-    bars: bars_dtype, code: str = None, frametype: str = "day"
+    bars: bars_dtype, code: str = None, frametype: FrameType = FrameType.DAY
 ) -> Tuple:
     """对买入信号发出之后一段时间的表现进行评价。
 
@@ -30,7 +31,7 @@ async def vanilla_score(
         bars: 包含信号发出日的行情数据
         code: 股票代码
         frametype: 传入带有时间序列数据的时间类型，
-        只有两种时间类型可被接受：'day'，'min30'。
+        只有两种时间类型可被接受：FrameType.DAY or FrameType.MIN30
 
     Returns:
         包含每日累计涨跌幅，最大涨幅和最大跌幅的元组。
@@ -39,10 +40,11 @@ async def vanilla_score(
     max_returns = []
     mdds = []
 
-    assert (frametype == "day") or (
-        frametype == "min30"
-    ), "'frmetype' must choose string between 'day' and 'min30'!"
-    if frametype == "day":
+    assert frametype in (
+        FrameType.DAY,
+        FrameType.MIN30,
+    ), "'frametype' must be either FrameType.DAY or FrameType.MIN30!"
+    if frametype == FrameType.DAY:
         assert (
             len(bars) >= 3
         ), "must provide a day frametype array with at least 3 length!"
@@ -78,7 +80,7 @@ async def vanilla_score(
             if mdd < 0:
                 mdds.append(mdd)
 
-    elif frametype == "min30":
+    elif frametype == FrameType.MIN30:
         assert (
             len(bars) >= 24
         ), "must prrovide a min30 framtype array with at least 24 length!"
@@ -155,15 +157,16 @@ def parallel_score(mas: Iterable[float]) -> float:
 
 def last_wave(ts: np.array, max_win: int = 60):
     """返回顶点距离，以及波段涨跌幅
-    
-        Args:
-            ts: 浮点数的时间序列
-            max_win: 在最大为`max_win`的窗口中检测波段。设置这个值是出于性能考虑，但也可能存在最后一个波段长度大于60的情况。
+
+    Args:
+        ts: 浮点数的时间序列
+        max_win: 在最大为`max_win`的窗口中检测波段。设置这个值是出于性能考虑，但也可能存在最后一个波段长度大于60的情况。
     """
     ts = ts[-max_win:]
     pv = peaks_and_valleys(ts)
     prev = np.argwhere(pv != 0).flatten()[-2]
     return len(ts) - prev, ts[-1] / ts[prev] - 1
+
 
 def adjust_close_at_pv(
     bars: BarsArray, flag: int
@@ -230,3 +233,46 @@ def adjust_close_at_pv(
         return np.where(pvs == -1, low, close), np.where(pvs == 1, high, close), pvs
     else:
         return None, np.where(pvs == 1, high, close), pvs
+
+
+def convex_short_signal(bars: BarsArray, ex_info=False):
+    """评估曲线的升降性
+
+    如果均线中间的点都落在端点连线上方，则该函数为凸函数；反之，则为凹函数。使用点到连线的差值的
+    平均值来表明曲线的凹凸性。进一步地，我们将凹凸性引申为升降性，并且对已经走成直线的均线，我们
+    使用平均涨跌幅来表明其升降性，从而使得在凹函数、凸函数和直线三种情况下，函数的返回值都能表明
+    均线的未来升降趋势。
+    Args:
+        bars:    行情数据，以30分钟为宜。
+        ex_info: 是否返回均线的详细评分信息
+
+    Returns:
+        如果出现空头信号，则返回1,否则返回0；如果ex_info为True，还将返回详细评估分数。
+    """
+    close = bars["close"]
+
+    scores = []
+    for win in (5, 10, 20):
+        n = 10 if win == 20 else 7
+        ma = moving_average(close, win)[-n:]
+
+        #         coeff = np.polyfit((0, n - 1), (ma[0], ma[-1]), deg=1)
+        #         ma_hat = np.poly1d(coeff)(np.arange(n))
+        ma_hat = np.arange(n) * (ma[-1] - ma[0]) / (n - 1) + ma[0]
+
+        score = np.mean(1 - ma[1 : n - 1] / ma_hat[1 : n - 1])
+        if abs(score) < 1e-3:
+            score = (ma[-1] / ma[0] - 1) / n
+
+        scores.append(score * 100)
+
+    scores = np.array(scores)
+    if np.count_nonzero(scores < 0) >= 2 and scores[-1] < 0:
+        flag = 1
+    else:
+        flag = 0
+
+    if ex_info:
+        return flag, scores
+    else:
+        return flag
