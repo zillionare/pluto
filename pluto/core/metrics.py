@@ -1,14 +1,14 @@
 import logging
 from itertools import combinations
-from typing import Iterable, Tuple
+from typing import Iterable, List, Tuple
 
 import numpy as np
-from coretypes import BarsArray, bars_dtype
+from coretypes import BarsArray, FrameType, bars_dtype
+from numpy.typing import NDArray
 from omicron import tf
-from coretypes import FrameType
-from omicron.extensions import price_equal
+from omicron.extensions import find_runs, price_equal
 from omicron.models.stock import Stock
-from omicron.talib import peaks_and_valleys, moving_average
+from omicron.talib import moving_average, peaks_and_valleys
 
 logger = logging.getLogger(__name__)
 
@@ -235,40 +235,48 @@ def adjust_close_at_pv(
         return None, np.where(pvs == 1, high, close), pvs
 
 
-def convex_short_signal(bars: BarsArray, ex_info=False):
-    """评估曲线的升降性
+def convex_signal(
+    bars: BarsArray = None,
+    wins=(5, 10, 20),
+    mas: List[NDArray] = None,
+    ex_info=False,
+    thresh: float = 3e-3,
+) -> Tuple[int, List[float]]:
+    """根据均线的升降性，判断是否发出买入或者卖出信号
 
-    如果均线中间的点都落在端点连线上方，则该函数为凸函数；反之，则为凹函数。使用点到连线的差值的
-    平均值来表明曲线的凹凸性。进一步地，我们将凹凸性引申为升降性，并且对已经走成直线的均线，我们
-    使用平均涨跌幅来表明其升降性，从而使得在凹函数、凸函数和直线三种情况下，函数的返回值都能表明
-    均线的未来升降趋势。
+    调用者需要保证参与计算的均线，至少有10个以上的有效值（即非np.NaN).
     Args:
-        bars:    行情数据，以30分钟为宜。
+        bars: 行情数据。
+        wins: 均线生成参数
         ex_info: 是否返回均线的详细评分信息
+        thresh: 决定均线是按直线拟合还是按曲线拟合的阈值
 
     Returns:
-        如果出现空头信号，则返回1,否则返回0；如果ex_info为True，还将返回详细评估分数。
+        如果出现空头信号，则返回-1，多头信号则返回1，否则返回0；如果ex_info为True，还将返回详细评估分数。
     """
-    close = bars["close"]
+    if mas is None:
+        assert bars is not None, "either 'bars' or 'mas' should be presented"
+
+        mas = []
+        close = bars["close"]
+        for win in wins:
+            ma = moving_average(close, win)
+            mas.append(ma)
 
     scores = []
-    for win in (5, 10, 20):
-        n = 10 if win == 20 else 7
-        ma = moving_average(close, win)[-n:]
-
-        #         coeff = np.polyfit((0, n - 1), (ma[0], ma[-1]), deg=1)
-        #         ma_hat = np.poly1d(coeff)(np.arange(n))
-        ma_hat = np.arange(n) * (ma[-1] - ma[0]) / (n - 1) + ma[0]
-
-        score = np.mean(1 - ma[1 : n - 1] / ma_hat[1 : n - 1])
-        if abs(score) < 1e-3:
-            score = (ma[-1] / ma[0] - 1) / n
-
-        scores.append(score * 100)
+    for ma in mas:
+        assert len(ma) >= 10, "length of moving average array should be at least 10."
+        scores.append(convex_score(ma[-10:], thresh=thresh))
 
     scores = np.array(scores)
-    if np.count_nonzero(scores < 0) >= 2 and scores[-1] < 0:
+
+    # 如果均线为0，则表明未表态
+    non_zero = np.count_nonzero(scores)
+
+    if np.count_nonzero(scores > 0) == non_zero:
         flag = 1
+    elif np.count_nonzero(scores < 0) == non_zero:
+        flag = -1
     else:
         flag = 0
 
@@ -276,3 +284,51 @@ def convex_short_signal(bars: BarsArray, ex_info=False):
         return flag, scores
     else:
         return flag
+
+
+def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
+    """评估时间序列`ts`的升降性
+
+    如果时间序列中间的点都落在端点连线上方，则该函数为凸函数；反之，则为凹函数。使用点到连线的差值的
+    平均值来表明曲线的凹凸性。进一步地，我们将凹凸性引申为升降性，并且对单调上升/下降（即直线)，我们
+    使用平均涨跌幅来表明其升降性，从而使得在凹函数、凸函数和直线三种情况下，函数的返回值都能表明
+    均线的未来升降趋势。
+    Args:
+        ts:  时间序列
+        n: 用来检测升降性的元素个数。
+        thresh: 当点到端点连线之间的平均相对差值小于此值时，认为该序列的几何图形为直线
+
+    Returns:
+        返回评估分数，如果大于0，表明为上升曲线，如果小于0，表明为下降曲线。0表明无法评估或者为横盘整理。
+    """
+    if n == 0:
+        n = len(ts)
+    elif n == 2:
+        return (ts[1] / ts[0] - 1) / n
+    elif n == 1:
+        raise ValueError(f"'n' must be great than 1")
+
+    ts = ts[-n:]
+    ts_hat = np.arange(n) * (ts[-1] - ts[0]) / (n - 1) + ts[0]
+
+    # 如果点在连线下方，则曲线向上，分数为正
+    interleave = ts_hat - ts
+    score = np.mean(ts_hat[1:-1] / ts[1:-1] - 1)
+
+    slp = (ts[-1] / ts[0] - 1) / n
+    if abs(score) < thresh and abs(slp) > 1.5e-3:
+        # 如果convex_score小于阈值，且按直线算斜率又大于1.5e-3,认为直线是趋势
+        score = slp
+    if np.all(interleave >= 0) or np.all(interleave <= 0):
+        return score * 100
+    # 存在交织的情况，取最后一段
+    else:
+        _, start, length = find_runs(interleave >= 0)
+        if length[-1] == 1:  # 前一段均为负，最后一个为零时，会被单独分为一段，需要合并
+            n = length[-2] + 1
+            begin = start[-2]
+        else:
+            n = length[-1]
+            begin = start[-1]
+
+        return convex_score(ts[begin:], n)
