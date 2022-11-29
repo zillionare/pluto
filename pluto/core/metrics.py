@@ -1,14 +1,16 @@
 import logging
 from itertools import combinations
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 from coretypes import BarsArray, FrameType, bars_dtype
 from numpy.typing import NDArray
 from omicron import tf
-from omicron.extensions import find_runs, price_equal
+from omicron.extensions import find_runs, price_equal,top_n_argpos
 from omicron.models.stock import Stock
-from omicron.talib import moving_average, peaks_and_valleys
+from omicron.talib import moving_average, peaks_and_valleys,rsi_watermarks
+from pluto.strategies.dompressure import dom_pressure
+import talib as ta
 
 logger = logging.getLogger(__name__)
 
@@ -332,3 +334,58 @@ def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
             begin = start[-1]
 
         return convex_score(ts[begin:], n)
+
+
+async def short_signal(
+    bars: BarsArray, ex_info=True
+) -> Tuple[int, Optional[dict]]:
+    """通过穹顶压力、rsi高位和均线拐头来判断是否出现看空信号。
+
+    Args:
+        bars: 行情数据
+        ex_info: 是否返回附加信息。这些信息可用以诊断
+    """
+    info = {}
+
+    mas = []
+    close = bars["close"]
+    wins = (5, 10, 20)
+    for win in wins:
+        mas.append(moving_average(close, win)[-10:])
+
+    # 检测多均线拐头或者下降压力
+    flag, scores = convex_signal(mas=mas, ex_info=True)
+    info.update({
+            "convex_scores": scores
+        })
+    if flag == -1:
+        return flag, info
+    
+    # 检测穹顶压力
+    for win, score in zip(wins, scores):
+        if score < -0.3: # todo: need to tune this parameter
+            dp = dom_pressure(bars, win)
+            info.update({
+                    "dom_pressure": dp,
+                    "win": win
+                })
+            if dp >= 1/7:
+                return -1, info
+
+    # 检测8周期内是否出现RSI高位，并且已经触发回调
+    if len(bars) >= 60:
+        _, hclose, pvs = adjust_close_at_pv(bars, 1)
+        rsi = ta.RSI(hclose.astype("f8"), 6)
+        top_rsis = top_n_argpos(rsi[-60:], 2)
+        dist = np.min(60 - top_rsis)
+
+        # 触发回调逻辑
+        # t0 触发RSI，从高点算起，到现在，合并成一个bar，其上影大于实体
+        info.update({
+            "top_rsi_dist": dist
+        })
+        if dist <= 8:
+            return -1, info
+        
+    # 其它情况
+    return 0, info

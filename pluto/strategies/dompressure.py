@@ -25,7 +25,7 @@ def dom_pressure(bars: BarsArray, win: int, convexity: float = None) -> float:
     最后七个bars没有穹顶压力，或传入数据不足37个，返回None。
 
     """
-    assert (win == 10) or (win == 20) or (win == 30), "传入均线窗口必须[10, 20, 30]中的数字！"
+    assert win in (10, 20, 30), "传入均线窗口必须[10, 20, 30]中的数字！"
     if len(bars) < 37:
         return None
 
