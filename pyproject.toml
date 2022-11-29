@@ -101,6 +101,7 @@ exclude = '''
   | buck-out
   | build
   | dist
+  | \.history
 )/
 '''
 [tool.isort]
