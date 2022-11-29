@@ -6,28 +6,35 @@ from coretypes import BarsArray
 from omicron.talib import pct_error
 
 
-def dom_pressure(bars: BarsArray, win: int, convexity: float = -3e-3) -> Tuple:
+def dom_pressure(bars: BarsArray, win: int, convexity: float = None) -> float:
     """判断穹顶压力
 
     原理：
     当最后七个收盘价均线向下拐头时， 对窗口为win的均线进行拟合，
-    如果拟合误差小于3e-3，最后一个bar的收盘价低于穹顶，
+    如果拟合误差小于特定值，最后一个bar的收盘价低于穹顶，
     视为压力确认有效。close以低于ma为主，且至少一个bar的high高于ma,确认压力。
 
     Args:
     bars: 具有时间序列的BarsArray, 其中必须包含收盘价，最高价，传入长度至少为37
-    win: 均线窗口，win的值不超过30，当win=10，窗口为10的收盘价移动平均值的穹顶压力
+    win: 均线窗口，win的值不超过30，比如：当win=10，窗口为10的收盘价移动平均值的穹顶压力
     convexity: 穹顶弧度限制，该数为负数，越小弧度越明显
 
     Returns:
-    返回Tuple：第一个为判断最后七个bar是否出现了穹顶压力的Boolean值；
-    第二个为最后七个bar的最高价是否冲过压力的Boolean list。
+    返回float：最后七个bar的最高价冲过压力的数量/7,
+    比如：最后七个bar中的第二,三个最高价冲过压力，返回2/7)
     最后七个bars没有穹顶压力，或传入数据不足37个，返回None。
 
     """
-    assert win <= 30, "传入均线窗口必须在30以内！"
+    assert (win == 10) or (win == 20) or (win == 30), "传入均线窗口必须[10, 20, 30]中的数字！"
     if len(bars) < 37:
         return None
+
+    if win == 10:
+        convexity = -3e-3
+    elif win == 20:
+        convexity = -2e-3
+    elif win == 30:
+        convexity = -1e-3
 
     close = bars["close"]
     high = bars["high"]
@@ -59,4 +66,4 @@ def dom_pressure(bars: BarsArray, win: int, convexity: float = -3e-3) -> Tuple:
 
         # close以低于ma为主，且至少一个bar的high高于ma,确认压力
         if (cls_under_num > 3) and (hig_break_num >= 1) and (not hig_break[-1]):
-            return True, hig_break
+            return np.count_nonzero(hig_break) / 7

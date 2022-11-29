@@ -218,7 +218,7 @@ async def round_numbers(
 
     Args:
         price: 传入的价格
-        limit_prices: 传入需要计算整数支撑和压力的当天涨跌停价格
+        limit_prices: 传入需要计算整数支撑和压力的当天[跌停价，涨停价]
 
     Returns:
         返回有两个元素的Tuple, 第一个为支撑数列， 第二个为压力数列。
@@ -229,26 +229,34 @@ async def round_numbers(
     step = int(mean_limit) / 50  # 上下涨跌20%，再分10档，即2%左右为一档
 
     # 根据传入的价格，100以内保留一位小数，大于100只保留整数位
-    if price < 100:
+    if price < 10:
         step_ints = np.around(np.arange(low_limit, high_limit + step, step), 1)
-        # 涨跌停价格之间0.5为倍数的所有数
+        # 涨跌停价格之间0.5为倍数的所有数+十档
         int_low = low_limit - low_limit % 0.5 + 0.5
         five_times = np.around(np.arange(int_low, high_limit, 0.5), 1)
         total_int = np.append(step_ints, five_times)
 
-    elif 100 <= price < 1000:
+    elif 10 <= price < 100:
+        # 涨跌停价格之间0.5为倍数的所有数
+        int_low = low_limit - low_limit % 0.5 + 0.5
+        total_int = np.around(np.arange(int_low, high_limit, 0.5), 1)
+
+    elif 100 <= price < 500:
         step_ints = np.around(np.arange(low_limit, high_limit + step, step), 0)
         # 涨跌停价格之间5为倍数的所有数
         int_low = low_limit - low_limit % 5 + 5
         five_times = np.around(np.arange(int_low, high_limit, 5), 1)
         total_int = np.append(step_ints, five_times)
 
+    elif 500 <= price < 1000:
+        # 涨跌停价格之间50为倍数的所有数
+        int_low = low_limit - low_limit % 5 + 5
+        total_int = np.around(np.arange(int_low, high_limit, 5), 1)
+
     else:
-        step_ints = np.around(np.arange(low_limit, high_limit + step, step), 0)
         # 涨跌停价格之间50为倍数的所有数
         int_low = low_limit - low_limit % 50 + 50
-        five_times = np.around(np.arange(int_low, high_limit, 50), 1)
-        total_int = np.append(step_ints, five_times)
+        total_int = np.around(np.arange(int_low, high_limit, 50), 1)
 
     total_int = total_int[(total_int <= high_limit) & (total_int >= low_limit)]
     total_int = np.append(low_limit, total_int)
