@@ -4,7 +4,13 @@ from unittest import mock
 
 import numpy as np
 
-from pluto.core.metrics import parallel_score, vanilla_score, adjust_close_at_pv
+from pluto.core.metrics import (
+    parallel_score,
+    vanilla_score,
+    adjust_close_at_pv,
+    convex_score,
+    convex_signal
+)
 import unittest
 import cfg4py
 import os
@@ -13,6 +19,7 @@ from omicron.models.stock import Stock
 from coretypes import FrameType
 import datetime
 import numpy as np
+from omicron.talib import moving_average
 
 
 class MetricsTest(unittest.IsolatedAsyncioTestCase):
@@ -86,7 +93,7 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
             "omicron.models.stock.Stock.trade_price_limit_flags",
             return_value=([False], [False]),
         ):
-            actual = await vanilla_score(bars, code, frametype="day")
+            actual = await vanilla_score(bars, code, frametype=FrameType.DAY)
             exp = ([0.04918036, 0.08442621, 0.06885247], [0.08442621], [])
             for i in range(3):
                 np.testing.assert_array_almost_equal(actual[i], exp[i], decimal=3)
@@ -151,7 +158,7 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
             "omicron.models.stock.Stock.trade_price_limit_flags",
             return_value=([True], [False]),
         ):
-            actual = await vanilla_score(bars, code, frametype="day")
+            actual = await vanilla_score(bars, code, frametype=FrameType.DAY)
             exp = ([0.14043753, 0.14608325], [0.14608325], [])
             for i in range(3):
                 np.testing.assert_array_almost_equal(actual[i], exp[i], decimal=3)
@@ -534,7 +541,7 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
                     ],
                 )
 
-                actual = await vanilla_score(bars, code, frametype="min30")
+                actual = await vanilla_score(bars, code, frametype=FrameType.MIN30)
                 exp = (
                     [0.02098461, -0.01533499, 0.03309119],
                     [0.03309119],
@@ -969,7 +976,7 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
                         ("factor", "<f4"),
                     ],
                 )
-                actual = await vanilla_score(bars_, code, frametype="min30")
+                actual = await vanilla_score(bars_, code, frametype=FrameType.MIN30)
                 exp = ([0.16308728, 0.27919462, 0.20872487], [0.27919462], [])
                 for i in range(3):
                     np.testing.assert_array_almost_equal(actual[i], exp[i], decimal=3)
@@ -1030,3 +1037,91 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
 
         _, high, pvs = adjust_close_at_pv(bars, 1)
         self.assertAlmostEqual(19.86, high[-1], 2)
+
+    async def test_convex_score(self):
+        bars = await Stock.get_bars(
+            "000852.XSHG",
+            70,
+            FrameType.MIN30,
+            end=datetime.datetime(2022, 11, 29, 10, 30),
+        )
+
+        scores = [0.3438, 0.1511, 0.0332, 0.111, 0.0259]
+        # win = 20有弦弧交织
+        for i, win in enumerate([5, 10, 20, 30, 60]):
+            ma = moving_average(bars["close"], win)[-10:]
+            score = convex_score(ma)
+            self.assertAlmostEqual(scores[i], score, 3)
+
+        # 下降为主
+        bars = await Stock.get_bars(
+            "000852.XSHG",
+            70,
+            FrameType.MIN30,
+            end=datetime.datetime(2022, 11, 25, 11, 30),
+        )
+
+        scores = [-0.2181, -0.238, 0.0405, -0.0213, -0.0435]
+        # win = 30有交织
+        for i, win in enumerate([5, 10, 20, 30, 60]):
+            ma = moving_average(bars["close"], win)[-10:]
+            score = convex_score(ma)
+            self.assertAlmostEqual(scores[i], score, 3)
+
+    async def test_convex_signal(self):
+        bars = await Stock.get_bars(
+            "002782.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 24, 15)
+        )
+
+        flag, scores = convex_signal(bars, ex_info=True)
+        self.assertEqual(flag, -1)
+        exp = [-0.549, -0.187, -0.141]
+        np.testing.assert_array_almost_equal(scores, exp, 3)
+
+        bars = await Stock.get_bars(
+            "002843.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 24, 15)
+        )
+
+        flag, scores = convex_signal(bars, ex_info=True)
+        self.assertEqual(flag, -1)
+        exp = [-0.973, -0.433, -0.130]
+        np.testing.assert_array_almost_equal(scores, exp, 3)
+
+        bars = await Stock.get_bars('000779.XSHE', 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 16, 10))
+
+        flag, scores = convex_signal(bars, ex_info=True)
+        self.assertEqual(flag, -1)
+
+        exp = [-0.002, -0.392, -0.136]
+        np.testing.assert_array_almost_equal(scores, exp, 3)
+
+        # 信号为0的情况
+        bars = await Stock.get_bars('000779.XSHE', 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 15, 15))
+
+        flag, scores = convex_signal(bars, ex_info=True)
+        self.assertEqual(flag, 0)
+
+        exp = [0.5827277 , -0.4453041 ,  0.18275976]
+        np.testing.assert_array_almost_equal(scores, exp, 3)
+
+        # 信号为1的情况
+        bars = await Stock.get_bars('000779.XSHE', 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 11, 14, 30))
+
+        flag, scores = convex_signal(bars, ex_info=True)
+        self.assertEqual(flag, 1)
+
+        exp = [2.91e-04, 1.46e-04, 1.93e-01]
+        np.testing.assert_array_almost_equal(scores, exp, 3)
+
+        bars = await Stock.get_bars('000779.XSHE', 200, FrameType.MIN30, end = datetime.datetime(2022,11, 29, 10))
+
+        prev = 0
+        for i in range(30, 200):
+            xbars = bars[:i]
+            flag, scores = convex_signal(xbars, ex_info=True)
+            if xbars[-1]['frame'] == datetime.datetime(2022, 11, 22, 14):
+                print(scores)
+            if flag != prev and flag != 0:
+                (s5, s10, s20) = scores.tolist()
+                print(f"{xbars[-1]['frame']} {flag} {s5:.2%} {s10:.2%} {s20:.2%}")
+                prev = flag

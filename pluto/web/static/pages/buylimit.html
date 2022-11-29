@@ -1,18 +1,13 @@
 <div class="container">
     <div class="row pt-3 px-3">
         <div class="col">
-            <p class="fs-3">涨停池查询</p>
+            <p class="fs-3">涨停池</p>
         </div>
-        <div class="col-2">
-            <button id="buylimit-pool-query"
-                type="button" 
-                class="btn btn-secondary h-50 fs-6 py-0 float-end">
-                重新查询
-            </button>
+        <div class="col-5">
+            <p class="fw-lighter text-muted text-sm-end" id="buylimit-filter">查询条件</p>
         </div>
     </div>
     <hr class="border-1 border-top" style="margin-top: -1rem !important">
-    <p class="fw-lighter text-muted text-sm-end" id="buylimit-filter">查询条件</p>
     <div id="content">
         <div style="padding:20px">
             <table id="stats" class="display" style="width:100%">
@@ -48,15 +43,22 @@
         }else{
             filters = JSON.parse(filters)
         }
-        text = "查询条件：从" + filters["start"] + "-" + filters["end"] +
+        text = "从" + filters["start"] + "-" + filters["end"] +
             "涨停" + filters["total_min"] + "-" + filters["total_max"] + "次,连板" +
             filters["continuous_min"] + "-" + filters["continuous_max"] + "次,距今" + filters["till_now"] + "天"
         $('#buylimit-filter').text(text)
     }
     $(document).ready(function(){
         $('#stats').DataTable({
+                paging: false,
+                searching: false,
+                info: false,
             ajax: '/data/buylimit_stats.txt',
         });
         show_query_filters()
+
+        $('#buylimit-filter').click(funcion(e){
+            
+        })
     })
 </script>
