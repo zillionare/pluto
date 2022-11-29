@@ -1,5 +1,6 @@
 """尾盘快速选股，使用30分钟多头，或者涨停股、触及涨停股30分钟当天出现RSI低位（至少3周期确认）"""
 import datetime
+import logging
 from typing import List
 
 import numpy as np
@@ -19,7 +20,6 @@ from pluto.core.volume import top_volume_direction
 from pluto.store.base import ZarrStore
 from pluto.store.buy_limit_pool import BuyLimitPoolStore
 from pluto.store.touch_buy_limit_pool import TouchBuyLimitPoolStore
-import logging
 
 logger = logging.getLogger(__name__)
 

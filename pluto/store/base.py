@@ -1,6 +1,7 @@
+import datetime
 import os
 from typing import Any, List
-import datetime
+
 import zarr
 from omicron import tf
 

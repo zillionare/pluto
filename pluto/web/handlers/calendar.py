@@ -1,8 +1,8 @@
 from functools import partial
 
+import orjson
 from omicron import tf
 from sanic import Blueprint, response
-import orjson
 
 json_dumps = partial(orjson.dumps, option=orjson.OPT_SERIALIZE_NUMPY)
 calendar = Blueprint("calendar", url_prefix="/calendar")

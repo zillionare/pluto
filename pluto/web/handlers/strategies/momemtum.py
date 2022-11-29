@@ -1,9 +1,11 @@
+import logging
+from functools import partial
+
 import arrow
+import orjson
 from sanic import Blueprint, response
 from sanic.exceptions import SanicException
-import orjson
-from functools import partial
-import logging
+
 from pluto.strategies.momentum import MomemtumStrategy
 
 logger = logging.getLogger(__name__)

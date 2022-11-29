@@ -1,12 +1,14 @@
 """跟踪涨停板"""
-from pluto.store.buy_limit_pool import BuyLimitPoolStore
+import datetime
+
 from coretypes import FrameType
 from omicron import tf
-import datetime
 from omicron.models.security import Security
 from omicron.models.stock import Stock
+
 from pluto.core import is_main_board
 from pluto.core.morph import n_red_candlestick
+from pluto.store.buy_limit_pool import BuyLimitPoolStore
 
 
 async def three_white_soldiers(

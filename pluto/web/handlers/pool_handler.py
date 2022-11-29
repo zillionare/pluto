@@ -1,9 +1,10 @@
+import asyncio
+
 import arrow
 import numpy as np
 from omicron.models.security import Security
 from sanic import Blueprint, response
 from sanic.exceptions import SanicException
-import asyncio
 
 from pluto.store.buy_limit_pool import BuyLimitPoolStore
 from pluto.store.long_parallel_pool import LongParallelPool

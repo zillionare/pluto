@@ -9,7 +9,7 @@ from pluto.core.metrics import (
     vanilla_score,
     adjust_close_at_pv,
     convex_score,
-    convex_signal
+    convex_signal,
 )
 import unittest
 import cfg4py
@@ -1087,7 +1087,9 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
         exp = [-0.973, -0.433, -0.130]
         np.testing.assert_array_almost_equal(scores, exp, 3)
 
-        bars = await Stock.get_bars('000779.XSHE', 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 16, 10))
+        bars = await Stock.get_bars(
+            "000779.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 16, 10)
+        )
 
         flag, scores = convex_signal(bars, ex_info=True)
         self.assertEqual(flag, -1)
@@ -1096,16 +1098,23 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
         np.testing.assert_array_almost_equal(scores, exp, 3)
 
         # 信号为0的情况
-        bars = await Stock.get_bars('000779.XSHE', 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 15, 15))
+        bars = await Stock.get_bars(
+            "000779.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 15, 15)
+        )
 
         flag, scores = convex_signal(bars, ex_info=True)
         self.assertEqual(flag, 0)
 
-        exp = [0.5827277 , -0.4453041 ,  0.18275976]
+        exp = [0.5827277, -0.4453041, 0.18275976]
         np.testing.assert_array_almost_equal(scores, exp, 3)
 
         # 信号为1的情况
-        bars = await Stock.get_bars('000779.XSHE', 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 11, 14, 30))
+        bars = await Stock.get_bars(
+            "000779.XSHE",
+            30,
+            FrameType.MIN30,
+            end=datetime.datetime(2022, 11, 11, 14, 30),
+        )
 
         flag, scores = convex_signal(bars, ex_info=True)
         self.assertEqual(flag, 1)
@@ -1113,13 +1122,15 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
         exp = [2.91e-04, 1.46e-04, 1.93e-01]
         np.testing.assert_array_almost_equal(scores, exp, 3)
 
-        bars = await Stock.get_bars('000779.XSHE', 200, FrameType.MIN30, end = datetime.datetime(2022,11, 29, 10))
+        bars = await Stock.get_bars(
+            "000779.XSHE", 200, FrameType.MIN30, end=datetime.datetime(2022, 11, 29, 10)
+        )
 
         prev = 0
         for i in range(30, 200):
             xbars = bars[:i]
             flag, scores = convex_signal(xbars, ex_info=True)
-            if xbars[-1]['frame'] == datetime.datetime(2022, 11, 22, 14):
+            if xbars[-1]["frame"] == datetime.datetime(2022, 11, 22, 14):
                 print(scores)
             if flag != prev and flag != 0:
                 (s5, s10, s20) = scores.tolist()
