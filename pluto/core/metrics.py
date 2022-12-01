@@ -3,14 +3,15 @@ from itertools import combinations
 from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
+import talib as ta
 from coretypes import BarsArray, FrameType, bars_dtype
 from numpy.typing import NDArray
 from omicron import tf
-from omicron.extensions import find_runs, price_equal,top_n_argpos
+from omicron.extensions import find_runs, price_equal, top_n_argpos
 from omicron.models.stock import Stock
-from omicron.talib import moving_average, peaks_and_valleys,rsi_watermarks
+from omicron.talib import moving_average, peaks_and_valleys
+
 from pluto.strategies.dompressure import dom_pressure
-import talib as ta
 
 logger = logging.getLogger(__name__)
 
