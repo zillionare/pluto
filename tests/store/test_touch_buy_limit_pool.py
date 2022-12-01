@@ -20,7 +20,7 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
         cfg4py.init(get_config_dir())
         await omicron.init()
         try:
-            shutil.rmtree("/tmp/pluto.zarr")
+            shutil.rmtree(os.path.expanduser("~/tmp/pluto.zarr"))
         except FileNotFoundError:
             pass
 
@@ -31,7 +31,7 @@ class TouchBuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
     @pytest.mark.skipif(os.environ.get("IS_GITHUB"), reason="本测试需要omicron数据，只能在本地运行")
     async def test_pooling(self):
         # this also tests get/query
-        store = TouchBuyLimitPoolStore("/tmp/pluto.zarr")
+        store = TouchBuyLimitPoolStore(os.path.expanduser("~/tmp/pluto.zarr"))
 
         with mock.patch(
             "omicron.models.security.Query.eval", return_value=["000032.XSHE"]

@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import numpy as np
 import talib as ta
 from coretypes import BarsArray
@@ -17,7 +15,7 @@ def dom_pressure(bars: BarsArray, win: int, convexity: float = None) -> float:
     Args:
     bars: 具有时间序列的BarsArray, 其中必须包含收盘价，最高价，传入长度至少为37
     win: 均线窗口，win的值不超过30，比如：当win=10，窗口为10的收盘价移动平均值的穹顶压力
-    convexity: 穹顶弧度限制，该数为负数，越小弧度越明显
+    convexity: 穹顶弧度限制，该数为负数，越小弧度越明显，根据传入win不同，convexity随之改变
 
     Returns:
     返回float：最后七个bar的最高价冲过压力的数量/7,
@@ -55,7 +53,7 @@ def dom_pressure(bars: BarsArray, win: int, convexity: float = None) -> float:
     convex = index * 6 * coef[0] + 2 * coef[1]
 
     if (
-        (np.count_nonzero(convex < 0) > 5)
+        (np.count_nonzero(convex < 0) >= 5)
         and (error < 3e-3)
         and (cls[-1] < max_ma_hat)
         and (np.mean(convex) < convexity)

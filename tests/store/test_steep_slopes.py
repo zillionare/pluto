@@ -1,21 +1,23 @@
-from pluto.store.steep_slopes_pool import SteepSlopesPool
+import datetime
+import os
+import shutil
 import unittest
 from unittest import mock
-from freezegun import freeze_time
+
 import cfg4py
-import os
 import omicron
-import datetime
-import shutil
+from freezegun import freeze_time
+
+from pluto.store.steep_slopes_pool import SteepSlopesPool
 
 
 class SteepSlopesPoolTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        os.environ["pluto_store_path"] = "/tmp/pluto.zarr"
+        os.environ["pluto_store_path"] = os.path.expanduser("~/tmp/pluto.zarr")
         cfg4py.init(os.path.expanduser("~/zillionare/pluto"))
         await omicron.init()
         try:
-            shutil.rmtree("/tmp/pluto.zarr")
+            shutil.rmtree(os.path.expanduser("~/tmp/pluto.zarr"))
         except FileNotFoundError:
             pass
 

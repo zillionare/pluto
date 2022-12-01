@@ -3,14 +3,15 @@ from itertools import combinations
 from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
+import talib as ta
 from coretypes import BarsArray, FrameType, bars_dtype
 from numpy.typing import NDArray
 from omicron import tf
-from omicron.extensions import find_runs, price_equal,top_n_argpos
+from omicron.extensions import find_runs, price_equal, top_n_argpos
 from omicron.models.stock import Stock
-from omicron.talib import moving_average, peaks_and_valleys,rsi_watermarks
+from omicron.talib import moving_average, peaks_and_valleys, rsi_watermarks
+
 from pluto.strategies.dompressure import dom_pressure
-import talib as ta
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,9 @@ async def vanilla_score(
 def parallel_score(mas: Iterable[float]) -> float:
     """求均线排列分数。
 
-    返回值介于[0, 1]之间。如果为1，则最后一期均线值为全多头排列，即所有的短期均线都位于所有的长期均线之上；如果为0，则是全空头排列，即所有的短期均线都位于所有的长期均线之下。值越大，越偏向于多头排列；值越小，越偏向于空头排列。
+    返回值介于[0, 1]之间。如果为1，则最后一期均线值为全多头排列，即所有的短期均线都位于所有的长期均线之上；
+    如果为0，则是全空头排列，即所有的短期均线都位于所有的长期均线之下。
+    值越大，越偏向于多头排列；值越小，越偏向于空头排列。
 
     Args:
         mas: 移动平均线数组
@@ -175,7 +178,11 @@ def adjust_close_at_pv(
 ) -> Tuple[np.array, np.array, np.array]:
     """将close序列中的峰谷值替换成为对应的high/low。
 
-        通过指定flag为（-1， 0， 1）中的任一个，以决定进行何种替换。如果flag为-1，则将close中对应谷处的数据替换为low；如果flag为1，则将close中对应峰处的数据替换为high。如果为0，则返回两组数据。
+        通过指定flag为（-1， 0， 1）中的任一个，以决定进行何种替换。
+
+        如果flag为-1，则将close中对应谷处的数据替换为low；如果flag为1，则将close中对应峰处的数据替换为high。
+
+        如果为0，则返回两组数据。
 
         最后，返回替换后的峰谷标志序列（1为峰，-1为谷）
     Args:
@@ -261,6 +268,7 @@ def convex_signal(
 
         mas = []
         close = bars["close"]
+        close = close.astype(np.float64)
         for win in wins:
             ma = moving_average(close, win)
             mas.append(ma)
@@ -308,7 +316,7 @@ def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
     elif n == 2:
         return (ts[1] / ts[0] - 1) / n
     elif n == 1:
-        raise ValueError(f"'n' must be great than 1")
+        raise ValueError("'n' must be great than 1")
 
     ts = ts[-n:]
     ts_hat = np.arange(n) * (ts[-1] - ts[0]) / (n - 1) + ts[0]
@@ -337,55 +345,107 @@ def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
 
 
 async def short_signal(
-    bars: BarsArray, ex_info=True
+    bars: BarsArray, ex_info=True, upper_thresh: float = 0.03
 ) -> Tuple[int, Optional[dict]]:
     """通过穹顶压力、rsi高位和均线拐头来判断是否出现看空信号。
 
     Args:
         bars: 行情数据
         ex_info: 是否返回附加信息。这些信息可用以诊断
+        upper_limit: 上影相对于实体最高部分的长度比
+
     """
     info = {}
 
     mas = []
     close = bars["close"]
+
     wins = (5, 10, 20)
     for win in wins:
         mas.append(moving_average(close, win)[-10:])
 
     # 检测多均线拐头或者下降压力
-    flag, scores = convex_signal(mas=mas, ex_info=True)
-    info.update({
-            "convex_scores": scores
-        })
+    flag, scores = convex_signal(mas=mas, ex_info=ex_info)
+    info.update({"convex_scores": scores})
     if flag == -1:
         return flag, info
-    
+
     # 检测穹顶压力
     for win, score in zip(wins, scores):
-        if score < -0.3: # todo: need to tune this parameter
+        if score < -0.3:  # todo: need to tune this parameter
             dp = dom_pressure(bars, win)
-            info.update({
-                    "dom_pressure": dp,
-                    "win": win
-                })
-            if dp >= 1/7:
+            info.update({"dom_pressure": dp, "win": win})
+            if dp > 0:
                 return -1, info
 
     # 检测8周期内是否出现RSI高位，并且已经触发回调
-    if len(bars) >= 60:
-        _, hclose, pvs = adjust_close_at_pv(bars, 1)
-        rsi = ta.RSI(hclose.astype("f8"), 6)
-        top_rsis = top_n_argpos(rsi[-60:], 2)
-        dist = np.min(60 - top_rsis)
+    # 先找长上影 这里需要增加 upper_limit:float = 0.03参数
+    # 这个参数根据传入数据的时间单位不同而改变
 
-        # 触发回调逻辑
-        # t0 触发RSI，从高点算起，到现在，合并成一个bar，其上影大于实体
-        info.update({
-            "top_rsi_dist": dist
-        })
+    high = bars["high"]
+    open_ = bars["open"]
+    upper_line = high / np.maximum(close, open_) - 1
+    iupper = np.where(upper_line >= upper_thresh)[0]
+    condlist = [upper_line >= upper_thresh, upper_line < upper_thresh]
+    choicelist = [high, close]
+    new_price = np.select(condlist, choicelist)
+
+    new_price = new_price.astype(np.float64)
+    rsi = ta.RSI(new_price, 6)
+    pivots = peaks_and_valleys(new_price)
+    ipivots = np.where(pivots == 1)[0]
+    ihigh_upper = np.intersect1d(iupper, ipivots)
+
+    if len(ihigh_upper) > 0:
+        dist = len(close) - 1 - ihigh_upper[-1]
         if dist <= 8:
-            return -1, info
-        
+            upper_rsi = rsi[ihigh_upper]
+            upper_rsi = upper_rsi[~np.isnan(upper_rsi)]
+            if (len(upper_rsi) == 1) and (upper_rsi[-1] >= 70):
+                info.update({"top_rsi_dist": dist})
+                return -1, info
+            elif (len(upper_rsi) == 2) and (upper_rsi[1] >= upper_rsi[0]):
+                info.update({"top_rsi_dist": dist})
+                return -1, info
+            elif len(upper_rsi) > 2:
+                prev_mean_rsi = np.mean([upper_rsi[-2], upper_rsi[-3]])
+                if upper_rsi[-1] >= prev_mean_rsi:
+                    info.update({"top_rsi_dist": dist})
+                    return -1, info
+
     # 其它情况
     return 0, info
+
+
+def high_upper_lead(bars: NDArray, upper_thresh: float = 0.03) -> bool:
+    """如果传入行情数据的最后一个bar有长上影，且长上影时触发过RSI高位，则认为会触发调整。
+
+    RSI高位判断利用rsi_watermark函数求出。
+
+    触发调整返回True，没有则返回False。
+
+    Args:
+        bars(NDArray): 长度不低于60，具有时间序列的行情数据
+        upper_thresh(float): 上引线的长度最低值限制
+
+    Returns:
+        触发调整返回True，没有则返回False。
+    """
+
+    assert len(bars) >= 60, "The length of bars must not less than 60!"
+    close = bars["close"]
+
+    # 先判断当前是否有长上引
+    hig = bars[-1]["high"]
+    cls = bars[-1]["close"]
+    opn = bars[-1]["open"]
+    body_high = max(opn, cls)
+    up_lead = hig / body_high - 1
+
+    adj = False
+    if up_lead >= upper_thresh:
+        _, hrsi, crsi = rsi_watermarks(close)
+        if hrsi is not None:
+            if crsi >= hrsi:
+                adj = True
+    return adj
