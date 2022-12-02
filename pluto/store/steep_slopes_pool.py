@@ -8,9 +8,9 @@ from numpy.typing import NDArray
 from omicron import tf
 from omicron.models.security import Security
 from omicron.models.stock import Stock
-from omicron.talib import moving_average, polyfit
+from omicron.talib import moving_average
 
-from pluto.core.metrics import parallel_score
+from pluto.core.metrics import parallel_score, convex_score
 from pluto.store.base import ZarrStore
 
 logger = logging.getLogger(__name__)
@@ -114,18 +114,20 @@ class SteepSlopesPool(ZarrStore):
             except ZeroDivisionError:
                 pass
 
-            for win in (10, 20, 60):
+            for win in (10, 20, 30, 60):
                 ma = mas.get(win)
                 if ma is not None:
-                    err, (slp, _) = polyfit(ma / ma[0], deg=1)
-                    if err > 3e-3 or slp <= 0:
+                    score = convex_score(ma)
+                    if score < 0:
                         continue
 
-                    results[win].append((code, slp))
+                    results[win].append((code, score))
+            if len(results) < 4: # 只有所有趋势都向上的，才计入
+                continue
 
-        # 对10, 20, 60均线，每种取前30支
+        # 对10, 20, 30 60均线，每种取前30支
         records = []
-        for win in (10, 20, 60):
+        for win in (10, 20, 30, 60):
             recs = results.get(win)
             if recs is None or len(recs) == 0:
                 continue
