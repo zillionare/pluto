@@ -1,15 +1,19 @@
+import datetime
 import logging
 from itertools import combinations
 from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
+import plotly.graph_objects as go
 import talib as ta
 from coretypes import BarsArray, FrameType, bars_dtype
 from numpy.typing import NDArray
 from omicron import tf
 from omicron.extensions import find_runs, price_equal, top_n_argpos
+from omicron.models.security import Security
 from omicron.models.stock import Stock
 from omicron.talib import moving_average, peaks_and_valleys, rsi_watermarks
+from plotly.subplots import make_subplots
 
 from pluto.strategies.dompressure import dom_pressure
 
@@ -314,7 +318,12 @@ def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
     if n == 0:
         n = len(ts)
     elif n == 2:
-        return (ts[1] / ts[0] - 1) / n
+        score = (ts[1] / ts[0] - 1) / n
+        if abs(score) <= thresh / 10:
+            return 0
+        else:
+            return score
+
     elif n == 1:
         raise ValueError("'n' must be great than 1")
 
@@ -323,7 +332,10 @@ def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
 
     # 如果点在连线下方，则曲线向上，分数为正
     interleave = ts_hat - ts
+
     score = np.mean(ts_hat[1:-1] / ts[1:-1] - 1)
+    if abs(score) <= thresh / 10:
+        return 0
 
     slp = (ts[-1] / ts[0] - 1) / n
     if abs(score) < thresh and abs(slp) > 1.5e-3:
@@ -345,7 +357,7 @@ def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
 
 
 async def short_signal(
-    bars: BarsArray, ex_info=True, upper_thresh: float = 0.03
+    bars: BarsArray, ex_info=True, upper_thresh: float = 0.015
 ) -> Tuple[int, Optional[dict]]:
     """通过穹顶压力、rsi高位和均线拐头来判断是否出现看空信号。
 
@@ -372,16 +384,15 @@ async def short_signal(
 
     # 检测穹顶压力
     for win, score in zip(wins, scores):
-        if score < -0.3:  # todo: need to tune this parameter
-            dp = dom_pressure(bars, win)
-            info.update({"dom_pressure": dp, "win": win})
-            if dp > 0:
-                return -1, info
+        # if score < -0.3:  # todo: need to tune this parameter
+        dp = dom_pressure(bars, win)
+        if dp is None:
+            continue
+        info.update({"dom_pressure": dp, "win": win})
+        if dp > 0:
+            return -1, info
 
     # 检测8周期内是否出现RSI高位，并且已经触发回调
-    # 先找长上影 这里需要增加 upper_limit:float = 0.03参数
-    # 这个参数根据传入数据的时间单位不同而改变
-
     high = bars["high"]
     open_ = bars["open"]
     upper_line = high / np.maximum(close, open_) - 1
@@ -417,7 +428,7 @@ async def short_signal(
     return 0, info
 
 
-def high_upper_lead(bars: NDArray, upper_thresh: float = 0.03) -> bool:
+def high_upper_lead(bars: NDArray, upper_thresh: float = 0.015) -> bool:
     """如果传入行情数据的最后一个bar有长上影，且长上影时触发过RSI高位，则认为会触发调整。
 
     RSI高位判断利用rsi_watermark函数求出。
@@ -449,3 +460,292 @@ def high_upper_lead(bars: NDArray, upper_thresh: float = 0.03) -> bool:
             if crsi >= hrsi:
                 adj = True
     return adj
+
+
+async def evaluate(code: str, end: datetime, ex_info=True, upper_thresh: float = 0.015):
+    bars = await Stock.get_bars(code, 60, FrameType.MIN30, end=end)
+    results = {}
+    if len(bars) < 60:
+        return results
+
+    close = bars["close"]
+
+    for i in range(30, 55):
+        xbars = bars[:i]
+        sell, info = await short_signal(xbars, ex_info, upper_thresh)
+
+        if sell == -1:
+            sub_results = {}
+            sub_results["fired_at"] = bars["frame"][i - 1]
+            sub_results["convex_scores"] = info["convex_scores"]
+
+            con = len(info)
+            if con == 1:
+                # 由convex_signal引起的卖点触发
+                sub_results["cause_reason"] = "convex"
+
+            elif con == 2:
+                #  由八周期内高RSI的长上影引起
+                sub_results["cause_reason"] = "upper_line"
+                sub_results["top_rsi_dist"] = info["top_rsi_dist"]
+
+            elif con == 3:
+                # 由穹顶压力引起
+                sub_results["cause_reason"] = "dompressure"
+                sub_results["dom_pressure"] = info["dom_pressure"]
+                sub_results["win"] = info["win"]
+
+            # 计算后五天收益
+            close_ = close[i - 1 : i + 5]
+            c0 = close_[0]
+            imin = np.argmin(close_[1:])
+            imax = np.argmax(close_[1:])
+            cmin = np.min(close_[1:])
+            cmax = np.max(close_[1:])
+
+            if np.all(close_ > c0):  # 单调上涨，错误卖出
+                profit = -1 * (cmax / c0 - 1)
+            elif np.all(close < c0):  # 单调下跌，正确！
+                profit = c0 / cmin - 1
+            elif imin < imax:  # 先下跌再上涨
+                profit = c0 / cmin - 1
+            elif (imin > imax) and (cmax - c0 < abs(c0 - cmin)):  # 先上涨再下跌，上涨较小，判断正确
+                profit = c0 / cmin - 1
+            elif (imin > imax) and (cmax - c0 >= abs(c0 - cmin)):  # 先上涨再下跌，上涨较大
+                profit = -1 * (cmax / c0 - 1)
+            else:  # 一般为涨停，判断正确
+                print(code, c0, close_[1:], "\n")
+                profit = 0
+            sub_results["end"] = end
+            sub_results["profits"] = profit
+            results[i - 1] = sub_results
+
+    return results
+
+
+async def plot_evaluate(
+    code: str, end: datetime, ex_info=True, upper_thresh: float = 0.015
+):
+    """将卖点标记点在图上标记出来
+    由convex_signal引起的卖点触发，绘制出卖出点的两点连线；
+    由穹顶压力引起，绘制出相应均线的穹顶图形；
+    由八周期内高RSI的长上影引起，标记出长上影所在点
+
+    Args:
+    code: 股票代码
+    end: 传入行情数据的最后一个时间点
+    ex_info： 是否需要额外信息
+    upper_limit: 上影相对于实体最高部分的长度比
+    """
+
+    results = await evaluate(code, end, ex_info, upper_thresh)
+
+    if len(results) > 0:
+        name = await Security.alias(code)
+        bars = await Stock.get_bars(code, 60, FrameType.MIN30, end=end)
+        frame = bars["frame"]
+        close = bars["close"]
+        close = close.astype(np.float64)
+        high = bars["high"]
+        index = np.arange(len(bars))
+        MA5 = ta.MA(close, 5)
+        MA10 = ta.MA(close, 10)
+        MA20 = ta.MA(close, 20)
+        MA30 = ta.MA(close, 30)
+        rsi = ta.RSI(close, 6)
+
+        fig = make_subplots(
+            rows=2, cols=1, specs=[[{}], [{}]], shared_xaxes=True, shared_yaxes=False
+        )
+        fig.add_trace(
+            go.Candlestick(
+                x=index,
+                close=close,
+                high=high,
+                open=bars["open"],
+                low=bars["low"],
+                increasing=dict(line=dict(color="red")),
+                decreasing=dict(line=dict(color="green")),
+                name="K线",
+                text=frame,
+            ),
+            row=1,
+            col=1,
+        )
+
+        fig.add_trace(
+            go.Scatter(x=index, y=MA5, mode="lines", name="MA5", text=bars["frame"]),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(x=index, y=MA10, mode="lines", name="MA10", text=bars["frame"]),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(x=index, y=MA20, mode="lines", name="MA20", text=bars["frame"]),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(x=index, y=MA30, mode="lines", name="MA30", text=bars["frame"]),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(x=index, y=rsi, mode="lines", name="RSI6", text=bars["frame"]),
+            row=2,
+            col=1,
+        )
+
+        iframes = list(results.keys())
+        for iframe in iframes:
+            sub_result = results[iframe]
+            cause_type = sub_result["cause_reason"]
+            if cause_type == "convex":
+                fig.add_shape(
+                    type="line",
+                    xref="x",
+                    yref="paper",
+                    x0=index[iframe],
+                    y0=0,
+                    x1=index[iframe],
+                    y1=1,
+                    line=dict(color="blue", width=1),
+                    opacity=0.5,
+                )
+                # fig.add_annotation(
+                #         x=index[iframe], y=0.2, xref='x', yref='paper',
+                #         showarrow=False, xanchor='left', text='降性')
+
+                # 线太多，杂乱
+                # for win, str_win in zip((MA5, MA10, MA20), (5, 10, 20)):
+                #         n = 10 if str_win == 20 else 7
+                #         ma = win[iframe+1-n:iframe+1]
+                #         ma_hat = np.arange(n) * (ma[-1]-ma[0])/(n - 1) + ma[0]
+                #         fig.add_trace(go.Scatter(x=index[iframe+1-n:iframe+1], y=ma_hat,
+                #                                 mode='lines',
+                #                                 line=dict(color='black', width = 1.5),
+                #                                 opacity=0.5,
+                #                                 text=frame[iframe+1-n:iframe+1],
+                #                                 name=f'MA_{str_win}_hat'),
+                #                                 row = 1,  col = 1)
+
+            elif cause_type == "dompressure":
+                dom_win = sub_result["win"]
+                fig.add_shape(
+                    type="line",
+                    xref="x",
+                    yref="paper",
+                    x0=index[iframe],
+                    y0=0,
+                    x1=index[iframe],
+                    y1=1,
+                    line=dict(color="black", width=1),
+                    opacity=0.5,
+                )
+                # fig.add_annotation(
+                #         x=index[iframe], y=0.4, xref='x', yref='paper',
+                #         showarrow=False, xanchor='left', text='穹顶')
+                fig.add_trace(
+                    go.Scatter(
+                        x=index[iframe - 6 : iframe + 1],
+                        y=ta.MA(close, dom_win)[iframe - 6 : iframe + 1],
+                        mode="lines",
+                        line=dict(width=3, color="black"),
+                        name=f"MA_{dom_win}穹顶",
+                    ),
+                    row=1,
+                    col=1,
+                )
+
+            elif cause_type == "upper_line":
+                dist = sub_result["top_rsi_dist"]
+                fig.add_shape(
+                    type="line",
+                    xref="x",
+                    yref="paper",
+                    x0=index[iframe],
+                    y0=0,
+                    x1=index[iframe],
+                    y1=1,
+                    line=dict(color="orange", width=1),
+                    opacity=1,
+                )
+                # fig.add_annotation(
+                #         x=index[iframe], y=0.6, xref='x', yref='paper',
+                #         showarrow=False, xanchor='left', text='上影')
+                fig.add_trace(
+                    go.Scatter(
+                        x=[index[iframe - dist]],
+                        y=[high[iframe - dist] * 1.02],
+                        mode="markers",
+                        marker_symbol="triangle-down",
+                        marker_line_color="midnightblue",
+                        marker_color="red",
+                        marker_line_width=1,
+                        marker_size=10,
+                        name="最近的高RSI长上影线",
+                    ),
+                    row=1,
+                    col=1,
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=[index[iframe - dist]],
+                        y=[rsi[iframe - dist] * 1.1],
+                        mode="markers",
+                        marker_symbol="triangle-down",
+                        marker_line_color="midnightblue",
+                        marker_color="red",
+                        marker_line_width=1,
+                        marker_size=10,
+                        name="最近的高RSI长上影线",
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+        fig.update_layout(
+            title=(f"{code}:{name}触发风险警报，蓝色降性，黑色穹顶，橙色上影"), width=1000, height=600
+        )
+        fig.update_yaxes(dict(domain=[0.4, 1]), row=1, col=1)
+        fig.update_yaxes(dict(domain=[0.0, 0.4]), row=2, col=1)
+
+        fig.update_xaxes(rangeslider_visible=False, row=1, col=1)
+        fig.update_xaxes(showspikes=True, spikethickness=2)
+        fig.update_yaxes(showspikes=True, spikethickness=2)
+
+        fig.show()
+
+        return results
+
+
+# from typing import Tuple
+
+# import cfg4py
+# import numpy as np
+# import omicron
+# import pandas as pd
+# import talib as ta
+# from coretypes import Frame, FrameType, bars_dtype
+# from numpy.random import choice
+# from omicron import tf
+# from omicron.models.stock import Stock
+# from omicron.talib import peaks_and_valleys
+# from zigzag import peak_valley_pivots
+
+# cfg = cfg4py.init("/home/belva/zillionare/config")
+# await omicron.init()
+
+# # 股票数据
+
+
+# np.random.seed(100)
+
+# codes = await Security.select().types(["stock"]).eval()
+# for code in choice(codes, 50):
+#     results = await plot_evaluate(
+#         code, end=tf.combine_time(datetime.date(2022, 11, 29), 15)
+#     )
