@@ -25,10 +25,12 @@
             localStorage.setItem("cur_page", page)
             $("#main").load("/pages/" + page + ".html")
         }
-        calendar = $.getJSON("/pluto/calendar")
+        $.getJSON("/pluto/calendar/days", function(data){
+            calendar = data
+        })
         $(document).ready(function(){
             var page = localStorage.getItem("cur_page")
-            nav_to(page || "buylimit")
+            nav_to(page || "command")
         })
     </script>
     <!--wrapper start-->
@@ -40,7 +42,7 @@
                     <img src="/dist/img/avatar.png" alt=""><p>jQueryScript</p>
                 </center>
                 <li class="item">
-                    <a href="" class="menu-btn"><i class="fas fa-desktop"></i><span>Dashboard</span></a>
+                    <a href="" class="menu-btn"><i class="fas fa-desktop"></i><span>终端</span></a>
                 </li>
                 <li class="item" id="profile">
                     <a href="#profile" class="menu-btn">

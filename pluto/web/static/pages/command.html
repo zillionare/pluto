@@ -1,0 +1,39 @@
+<div class="container">
+    <div class="mb-3">
+        <textarea class="form-control" 
+        id="command" 
+        rows="3"
+        placeholder="请输入命令，key:value格式"></textarea>
+    </div>
+    <button type="button" id="submit" class="btn btn-primary">提交</button>
+    <div>
+        <div style="padding:20px">
+            <table id="output" class="display" style="width:100%">
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    function run_command() {
+        console.info($("#command").val())
+        $.post("/pluto/command", 
+        data = $("#command").val(),
+        function(data){
+
+            $('#output').DataTable({
+                paging: false,
+                searching: false,
+                info: false,
+                data: data.data,
+                columnDefs: data.cols
+            })
+        }),
+        dataType = 'json'
+    }
+    $(document).ready(function(){
+        $("#submit").click(function(e){
+            run_command()
+        })
+    })
+</script>
