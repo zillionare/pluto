@@ -19,7 +19,7 @@ class BuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
         cfg4py.init(get_config_dir())
         await omicron.init()
         try:
-            shutil.rmtree("/tmp/pluto.zarr")
+            shutil.rmtree(os.path.expanduser("~/tmp/pluto.zarr"))
         except FileNotFoundError:
             pass
 
@@ -45,7 +45,7 @@ class BuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
 
     @pytest.mark.skipif(os.environ.get("IS_GITHUB"), reason="本测试只能在本地运行")
     async def test_all(self):
-        store = BuyLimitPoolStore("/tmp/pluto.zarr")
+        store = BuyLimitPoolStore(os.path.expanduser("~/tmp/pluto.zarr"))
 
         secs = [
             "003007.XSHE",

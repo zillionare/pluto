@@ -1,12 +1,13 @@
-import unittest
-import cfg4py
-import os
-import omicron
-from pluto.core.volume import top_volume_direction
-from omicron.models.stock import Stock
-from coretypes import FrameType
-import numpy as np
 import datetime
+import os
+import unittest
+
+import cfg4py
+import numpy as np
+import omicron
+from coretypes import FrameType
+from omicron.models.stock import Stock
+
 from pluto.core.volume import moving_net_volume, top_volume_direction
 from tests import init_test_env
 

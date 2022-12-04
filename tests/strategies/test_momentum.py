@@ -1,5 +1,6 @@
 import datetime
 import os
+import shutil
 import unittest
 
 import cfg4py
@@ -7,7 +8,6 @@ import omicron
 import pytest
 from coretypes import FrameType
 from omicron.models.stock import Stock
-import shutil
 
 from pluto.strategies.momentum import MomemtumStrategy
 
@@ -15,11 +15,11 @@ from pluto.strategies.momentum import MomemtumStrategy
 @pytest.mark.skipif(os.getenv("IS_GITHUB"), reason="run at local only")
 class MomemtumTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        os.environ["pluto_store_path"] = "/tmp/pluto.zarr"
+        os.environ["pluto_store_path"] = os.path.expanduser("~/tmp/pluto.zarr")
         cfg4py.init(os.path.expanduser("~/zillionare/pluto"))
         await omicron.init()
         try:
-            shutil.rmtree("/tmp/pluto.zarr")
+            shutil.rmtree(os.path.expanduser("~/tmp/pluto.zarr"))
         except FileNotFoundError:
             pass
 

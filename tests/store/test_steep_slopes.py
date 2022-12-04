@@ -1,21 +1,23 @@
-from pluto.store.steep_slopes_pool import SteepSlopesPool
+import datetime
+import os
+import shutil
 import unittest
 from unittest import mock
-from freezegun import freeze_time
+
 import cfg4py
-import os
 import omicron
-import datetime
-import shutil
+from freezegun import freeze_time
+
+from pluto.store.steep_slopes_pool import SteepSlopesPool
 
 
 class SteepSlopesPoolTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        os.environ["pluto_store_path"] = "/tmp/pluto.zarr"
+        os.environ["pluto_store_path"] = os.path.expanduser("~/tmp/pluto.zarr")
         cfg4py.init(os.path.expanduser("~/zillionare/pluto"))
         await omicron.init()
         try:
-            shutil.rmtree("/tmp/pluto.zarr")
+            shutil.rmtree(os.path.expanduser("~/tmp/pluto.zarr"))
         except FileNotFoundError:
             pass
 
@@ -32,5 +34,5 @@ class SteepSlopesPoolTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch("omicron.models.security.Query.eval", return_value=codes):
             await ssp.pooling(dt=datetime.date(2022, 11, 16))
             actual = ssp.get(datetime.date(2022, 11, 16))
-            self.assertEqual(5, len(actual))
-            self.assertEqual("002780.XSHE", actual[0]["code"])
+            self.assertEqual(8, len(actual))
+            self.assertEqual("000697.XSHG", actual[0]["code"])

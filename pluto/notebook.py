@@ -53,14 +53,3 @@ async def ascending_ma_lines():
 async def main():
     await init()
     return await ascending_ma_lines()
-
-df = await main()
-df = df.nlargest(300, "s20").nlargest(150, "s20")
-for _, name, code, *_ in df.itertuples():
-    bars = await Stock.get_bars(code, 260, FrameType.DAY)
-    close = bars["close"]
-    if close[-1]/close[-2] - 1 > 0.08:
-        continue
-
-    cs = Candlestick(bars,  title=f"{name}")
-    cs.plot()
