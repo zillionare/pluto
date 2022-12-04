@@ -60,7 +60,7 @@ class BuyLimitPoolStore(ZarrStore):
 
         pooled = self.data.attrs.get("pooled", [])
         pooled.extend(dates)
-        self.data.attrs["pooled"] = pooled
+        self.data.attrs["pooled"] = sorted(pooled)
 
     async def pooling(self, start: datetime.date, end: datetime.date = None):
         """采集`[start, end]`期间涨跌停数据并存盘。
@@ -138,6 +138,7 @@ class BuyLimitPoolStore(ZarrStore):
         Returns:
             返回代码、涨停次数、最长连续板数和最后涨停时间
         """
+        end = end or tf.int2date(self.pooled[-1])
         frames = tf.get_frames(start, end, FrameType.DAY)
         missed = set(frames) - set(self.pooled)
         if len(missed) > 0:
