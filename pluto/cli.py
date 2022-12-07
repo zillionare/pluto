@@ -59,14 +59,14 @@ def _parse_as_str_array(args: Any):
 
 def _save_proc_info(port, proc):
     path = os.path.dirname(__file__)
-    file = os.path.join(path, "config")
+    file = os.path.join(path, "proc")
     with open(file, "w") as f:
         f.writelines(json.dumps({"port": port, "proc": proc}))
 
 
 def _read_proc_info():
     path = os.path.dirname(__file__)
-    file = os.path.join(path, "config")
+    file = os.path.join(path, "proc")
     try:
         with open(file, "r") as f:
             info = json.load(f)
