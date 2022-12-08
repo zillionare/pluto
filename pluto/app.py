@@ -9,10 +9,9 @@ import pkg_resources
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sanic import Sanic
 
-from pluto.store.buy_limit_pool import pooling_latest
-from pluto.store.long_parallel_pool import LongParallelPool
 from pluto.store.steep_slopes_pool import SteepSlopesPool
 from pluto.store.touch_buy_limit_pool import TouchBuyLimitPoolStore
+from pluto.store.buy_limit_pool import BuyLimitPoolStore
 from pluto.web.blueprints import bp
 
 application = Sanic("pluto")
@@ -40,16 +39,12 @@ def serve_static_files(app):
 
 async def init(app, loop):
     await omicron.init()
-    lpp = LongParallelPool()
-    tblp = TouchBuyLimitPoolStore()
-
-    lpp = LongParallelPool()
+    blp = BuyLimitPoolStore()
     tblp = TouchBuyLimitPoolStore()
     ssp = SteepSlopesPool()
 
     scheduler = AsyncIOScheduler(event_loop=loop)
-    scheduler.add_job(lpp.pooling, "cron", hour=15, minute=2)
-    scheduler.add_job(pooling_latest, "cron", hour=15, minute=5)
+    scheduler.add_job(blp.pooling, "cron", hour=15, minute=5)
     scheduler.add_job(tblp.pooling, "cron", hour=15, minute=8)
     scheduler.add_job(ssp.pooling, "cron", hour=15, minute=8)
 
