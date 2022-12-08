@@ -9,8 +9,10 @@ from omicron import tf
 from omicron.models.security import Security
 from omicron.models.stock import Stock
 from omicron.talib import moving_average
+from pluto.core.metrics import last_wave
 
-from pluto.core.metrics import parallel_score, convex_score
+from omicron.talib import polyfit
+from pluto.core.metrics import convex_score
 from pluto.store.base import ZarrStore
 
 logger = logging.getLogger(__name__)
@@ -84,6 +86,13 @@ class SteepSlopesPool(ZarrStore):
 
         results = defaultdict(list)
 
+        min_ma_wave_len = {
+            10: 6,
+            20: 5,
+            30: 4,
+            60: 3
+        }
+
         for i, code in enumerate(secs):
             if (i + 1) % 500 == 0:
                 logger.info("progress update: %s/%s", i + 1, len(secs))
@@ -93,37 +102,33 @@ class SteepSlopesPool(ZarrStore):
 
             close = bars["close"]
 
-            # 尽管可以后期过滤，但当天涨幅过大的仍没有必要选取，它们在后面应该仍有机会被重新发现
-            if close[-1] / close[-2] - 1 > 0.07:
+            _, last_wave_amp = last_wave(close)
+            if last_wave_amp > 0.3:
                 continue
 
-            last_mas = []
-            mas = {}
+            slopes = {}
             for win in (10, 20, 30, 60):
                 if len(bars) < win + 10:
                     break
 
                 ma = moving_average(close, win)[-10:]
-                last_mas.append(ma[-1])
-                mas[win] = ma
+                pmin = np.argmin(ma)
+                if 10 - pmin < min_ma_wave_len.get(win, 6):
+                    break
 
-            # 如果均线不为多头，则仍然不选取
-            try:
-                if parallel_score(last_mas) < 5 / 6:
+                # 要求均线必须向上
+                score = convex_score(ma/ma[0], thresh = 1e-2)
+                if score < 3e-1:
+                    logger.debug(f"{code} convex not meet: {win} {score}")
                     continue
-            except ZeroDivisionError:
-                pass
+
+                slopes[win] = (code, score)
+                
+            if len(slopes) < 4:
+                continue
 
             for win in (10, 20, 30, 60):
-                ma = mas.get(win)
-                if ma is not None:
-                    score = convex_score(ma)
-                    if score < 0:
-                        continue
-
-                    results[win].append((code, score))
-            if len(results) < 4: # 只有所有趋势都向上的，才计入
-                continue
+                results[win].append(slopes.get(win))
 
         # 对10, 20, 30 60均线，每种取前30支
         records = []
