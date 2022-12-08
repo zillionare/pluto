@@ -58,9 +58,10 @@ class BuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
         with mock.patch("omicron.models.security.Query.eval", return_value=secs):
             start = datetime.date(2022, 11, 1)
             end = datetime.date(2022, 11, 2)
-            await store.pooling(start, end)
-            # ensure pooled only once
-            await store.pooling(start, end)
+            for dt in (start, end):
+                await store.pooling(dt)
+                # ensure pooled only once
+                await store.pooling(dt)
             query_results = store.find_all(start, end)
             exp_codes = {
                 "688136.XSHG",
@@ -82,11 +83,10 @@ class BuyLimitPoolTest(unittest.IsolatedAsyncioTestCase):
             )
 
         with mock.patch("omicron.models.security.Query.eval", return_value=secs):
-            start = datetime.date(2022, 11, 3)
-            end = datetime.date(2022, 11, 3)
-            await store.pooling(start, end)
+            dt = datetime.date(2022, 11, 3)
+            await store.pooling(dt)
 
-            actual = store.find_all(datetime.date(2022, 11, 1), end)
+            actual = store.find_all(datetime.date(2022, 11, 1), dt)
             self.assertEqual(
                 actual[actual["code"] == "600684.XSHG"]["continuous"].item(), 3
             )

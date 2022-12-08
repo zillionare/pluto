@@ -4,7 +4,11 @@ from typing import Any, List
 
 import zarr
 from omicron import tf
+import arrow
+import logging
+from omicron.models.security import Security
 
+logger = logging.getLogger(__name__)
 
 class ZarrStore(object):
     def __init__(self, path=None):
@@ -75,3 +79,28 @@ class ZarrStore(object):
             return tf.day_shift(timestamp, -1)
         else:
             return tf.day_shift(timestamp, 0)
+
+    async def pooling(self, dt: datetime.date = None, **kwargs):
+        """采集`dt`日的涨跌停数据并存盘。
+
+        Args:
+            dt: 统计日
+        """
+        dt = self._day_closed(dt or arrow.now().date())
+
+        if getattr(self, 'pooled', None) is not None:
+            if tf.date2int(dt) in self.pooled:
+                logger.info("%s already pooled", dt)
+                return
+
+        logger.info("building %s pool for %s...", self.__class__.__name__.lower(), dt)
+        secs = (
+            await Security.select()
+            .types(["stock"])
+            .exclude_cyb()
+            .exclude_kcb()
+            .exclude_st()
+            .eval()
+        )
+
+        await self._do_pooling(secs, dt, **kwargs)

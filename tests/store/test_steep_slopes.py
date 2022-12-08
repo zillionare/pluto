@@ -35,4 +35,4 @@ class SteepSlopesPoolTest(unittest.IsolatedAsyncioTestCase):
             await ssp.pooling(dt=datetime.date(2022, 11, 16))
             actual = ssp.get(datetime.date(2022, 11, 16))
             self.assertEqual(8, len(actual))
-            self.assertEqual("000697.XSHG", actual[0]["code"])
+            self.assertEqual("000697.XSHE", actual[0]["code"])

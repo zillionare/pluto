@@ -1,6 +1,7 @@
 import datetime
 import logging
 from collections import defaultdict
+from typing import List
 
 import numpy as np
 from coretypes import FrameType
@@ -10,7 +11,7 @@ from omicron.models.security import Security
 from omicron.models.stock import Stock
 from omicron.talib import moving_average
 
-from pluto.core.metrics import parallel_score, convex_score
+from pluto.core.metrics import convex_score, parallel_score
 from pluto.store.base import ZarrStore
 
 logger = logging.getLogger(__name__)
@@ -54,34 +55,7 @@ class SteepSlopesPool(ZarrStore):
 
         return result[result["win"] == win]
 
-    async def pooling(self, dt: datetime.date = None, n: int = 30):
-        """采集`dt`期间(10, 20, 60)日均线最陡的记录
-
-        Args:
-            dt: 日期
-            n:  取排列在前面的`n`条记录
-        """
-        if dt is None:
-            dt = self._day_closed(datetime.datetime.now().date())
-
-        if tf.date2int(dt) in self.pooled:
-            logger.info("%s already pooled", dt)
-            return self.get(dt)
-
-        logger.info(
-            "building steep slopes pool on %s, currently pooled: %s",
-            dt,
-            len(self.pooled),
-        )
-        secs = (
-            await Security.select()
-            .types(["stock"])
-            .exclude_st()
-            .exclude_cyb()
-            .exclude_kcb()
-            .eval()
-        )
-
+    async def _do_pooling(self, secs: List[str], dt: datetime.date, n: int = 30):
         results = defaultdict(list)
 
         for i, code in enumerate(secs):
@@ -122,7 +96,7 @@ class SteepSlopesPool(ZarrStore):
                         continue
 
                     results[win].append((code, score))
-            if len(results) < 4: # 只有所有趋势都向上的，才计入
+            if len(results) < 4:  # 只有所有趋势都向上的，才计入
                 continue
 
         # 对10, 20, 30 60均线，每种取前30支
