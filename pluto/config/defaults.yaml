@@ -30,4 +30,4 @@ influxdb:
   enable_compress: true
   max_query_size: 5000
 pluto:
-  store: /home/aaron/zillionare/pluto/pluto.zarr
+  store: /home/app/zillionare/pluto/pluto.zarr

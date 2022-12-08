@@ -300,7 +300,7 @@ def convex_signal(
         return flag
 
 
-def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
+def convex_score(ts: NDArray, thresh: float = 2e-3) -> float:
     """评估时间序列`ts`的升降性
 
     如果时间序列中间的点都落在端点连线上方，则该函数为凸函数；反之，则为凹函数。使用点到连线的差值的
@@ -315,35 +315,26 @@ def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
     Returns:
         返回评估分数，如果大于0，表明为上升曲线，如果小于0，表明为下降曲线。0表明无法评估或者为横盘整理。
     """
-    if n == 0:
-        n = len(ts)
-    elif n == 2:
-        score = (ts[1] / ts[0] - 1) / n
-        if abs(score) <= thresh / 10:
-            return 0
-        else:
-            return score
-
-    elif n == 1:
-        raise ValueError("'n' must be great than 1")
-
-    ts = ts[-n:]
+    n = len(ts)
+    
+    if n < 5:
+        return 0
+    
     ts_hat = np.arange(n) * (ts[-1] - ts[0]) / (n - 1) + ts[0]
 
     # 如果点在连线下方，则曲线向上，分数为正
     interleave = ts_hat - ts
-
-    score = np.mean(ts_hat[1:-1] / ts[1:-1] - 1)
-    if abs(score) <= thresh / 10:
-        return 0
-
-    slp = (ts[-1] / ts[0] - 1) / n
-    if abs(score) < thresh and abs(slp) > 1.5e-3:
-        # 如果convex_score小于阈值，且按直线算斜率又大于1.5e-3,认为直线是趋势
-        score = slp
+        
+    # 当前序列不能再分段处理了
     if np.all(interleave >= 0) or np.all(interleave <= 0):
+        score = np.mean(ts_hat[1:-1] / ts[1:-1] - 1)
+
+        if abs(score) < thresh:
+            # 弧度不明显，按直线处理
+            score = (ts[-1] / ts[0] - 1) / (n - 1)
+
         return score * 100
-    # 存在交织的情况，取最后一段
+    # 存在分段情况，取最后一段
     else:
         _, start, length = find_runs(interleave >= 0)
         if length[-1] == 1:  # 前一段均为负，最后一个为零时，会被单独分为一段，需要合并
@@ -353,7 +344,13 @@ def convex_score(ts: NDArray, n: int = 0, thresh: float = 1.5e-3) -> float:
             n = length[-1]
             begin = start[-1]
 
-        return convex_score(ts[begin:], n)
+        if n > len(ts) // 2:
+            return convex_score(ts[begin:])
+        else:
+            # 无法识别的情况
+            return 0
+
+
 
 
 async def short_signal(

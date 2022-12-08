@@ -4,97 +4,420 @@
     <meta charset="UTF-8">
     <title>Zillionare Research Platform</title>
     <link href="/dist/css/jquerysctipttop.css" rel="stylesheet" type="text/css">
-    <link rel="stylesheet" href="/dist/css/menu-style.css">
     <link rel="stylesheet" href="/dist/css/bootstrap.css">
     <link rel="stylesheet" href="/dist/css/all.min.css">
-    <script type="text/javascript" src="/dist/js/jquery.min.js"></script>
-    <script type="text/javascript" src="/dist/js/menu.js"></script>
+    <link rel="stylesheet" href="/dist/css/datatable.css">
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <script type="text/javascript" src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
     <script type="text/javascript" src="/dist/js/datatable.js"></script>
     <script type="text/javascript" src="/dist/js/bootstrap.js"></script>
-    <script type="text/javascript" src="/dist/js/common.js"></script>
-    <link rel="stylesheet" href="/dist/css/datatable.css">
- <style>
-    .content { margin: 3rem; }
-    .lead { font-size: 1.5rem; font-weight: 300; }
-</style>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src=" https://cdn.staticfile.org/echarts/4.3.0/echarts.min.js"></script>
+    <style>
+        .content { margin: 3rem; }
+        .lead { font-size: 1.5rem; font-weight: 300; }
+        ul{ margin: 0;list-style: none;}
+        .el-menu{
+          border:none
+        }
+        .el-dialog__header,.el-dialog__body{
+          padding:0
+        }
+        .el-icon-circle-close:hover{
+          cursor: pointer;
+        }
+        .dialog-footer{
+          padding: 0 200px;
+          display: flex;
+          justify-content: space-between;
+        }
+        .el-icon-circle-close{
+          color: white;
+          font-size:18px
+        }
+        .dialog-header{
+          height: 50px;
+          background-color: rgb(84, 92, 100);
+          display:flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 20px;
+        }
+        .wrapper .header{
+          background: #cc0001;
+          position: fixed;
+          width: calc(100% - 0%);/*If we increase .sidebar width from 250px to greater it will be improve automatically*/
+          height: 50px;
+          display: flex;
+          top: 0;
+        }
+        .wrapper .header .header-menu{
+          width: 100%;
+          height: calc(100%-0%); /*Adjust .header-menu from top to bottom into .header */
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 0 20px;
+        }
+        .wrapper .header .header-menu .title{
+          color: #fff;
+          font-size: 20px;
+          text-transform: uppercase;
+          font-weight: 900;
+          transition: 0.3s;
+          transition-property: color;
+        }
+        .wrapper .header .header-menu .title-hide{
+          color: #000;
+          font-family: monospace;
+        }
+        .wrapper .header .header-menu .title span .sec-span{
+          color: gold;;
+          font-family: cursive;
+        }
+        .wrapper .header .header-menu .sidebar-btn{
+          color: #fff;
+          position: absolute;
+          margin-left: 240px;
+          font-size: 22px;
+          font-weight: 900;
+          cursor: pointer;
+          transition: 0.3s;
+          transition-property: color;
+        }
+        .wrapper .header .header-menu .sidebar-btn:hover{
+          color: #4CCEE8;
+        }
+        .wrapper .header .header-menu ul{
+          display: flex;
+          float: right;
+        }
+        .wrapper .header .header-menu ul li i{
+          background: #fff;
+          color: #000;
+          display: block;
+          margin-right: 10px;
+          font-size: 18px;
+          width: 34px;
+          height: 34px;
+          line-height: 35px;
+          text-align: center;
+          border-radius: 50%;
+          transition: 0.3s;
+          transition-property: background,color;
+        }
+
+        .wrapper .header .header-menu ul li i:hover{
+          background: #4CCEE8;
+          color: #fff;
+          cursor: pointer;
+        }
+    </style>
 </head>
 <body>
-    <script type="text/javascript">
-        function nav_to(page){
-            console.log("goto page: " + page)
-            localStorage.setItem("cur_page", page)
-            $("#main").load("/pages/" + page + ".html")
-        }
-        $.getJSON("/pluto/calendar/days", function(data){
-            calendar = data
-        })
-        $(document).ready(function(){
-            var page = localStorage.getItem("cur_page")
-            nav_to(page || "command")
-        })
-    </script>
-    <!--wrapper start-->
-    <div class="wrapper">
-        <!--sidebar start-->
-        <div class="sidebar" id="sidebar">
-            <div class="sidebar-menu">
-                <center class="profile">
-                    <img src="/dist/img/avatar.png" alt=""><p>jQueryScript</p>
-                </center>
-                <li class="item">
-                    <a href="" class="menu-btn"><i class="fas fa-desktop"></i><span>终端</span></a>
-                </li>
-                <li class="item" id="profile">
-                    <a href="#profile" class="menu-btn">
-                        <i class="fas fa-user-circle"></i><span>股票池 <i class="fas fa-chevron-down drop-down"></i></span>
-                    </a>
-                    <div class="sub-menu">
-                        <a href="javascript: nav_to('buylimit')"><i class="fas fa-image"></i><span>涨停池</span></a>
-                        <a href="javascript: nav_to('steepslopes')"><i class="fas fa-address-card"></i><span>上升均线</span></a>
-                    </div>
-                </li>
-                <li class="item" id="messege">
-                    <a href="#messege" class="menu-btn">
-                        <i class="fas fa-envelope"></i><span>Messege <i class="fas fa-chevron-down drop-down"></i></span>
-                    </a>
-                    <div class="sub-menu">
-                        <a href="#"><i class="fas fa-envelope"></i><span>New</span></a>
-                        <a href="#"><i class="fas fa-envelope-square"></i><span>Sent</span></a>
-                        <a href="#"><i class="fas fa-exclamation-circle"></i><span>Spam</span></a>
-                    </div>
-                </li>
-                <li class="item" id="setting">
-                    <a href="#setting" class="menu-btn">
-                        <i class="fas fa-cog"></i><span>Setting <i class="fas fa-chevron-down drop-down"></i></span>
-                    </a>
-                    <div class="sub-menu">
-                        <a href="#"><i class="fas fa-lock"></i><span>Password</span></a>
-                        <a href="#"><i class="fas fa-language"></i><span>Language</span></a>
-                    </div>
-                </li>
-                <li class="item">
-                    <a href="" class="menu-btn"><i class="fas fa-info-circle"></i><span>About</span></a>
-                </li>
-            </div>
-        </div>
-        <!--sidebar end-->
-        <!--header menu start-->
-        <div class="header" id="header">
-            <div class="header-menu">
-                <div class="title"><span class="title-hide">jQuery<span class="sec-span">Script</span></span></div>
-                <div class="sidebar-btn">
-                    <i class="fas fa-bars"></i>
-                </div>
-                <ul>
-                    <li><a href=""><i class="fab fa-facebook-f"></i></a></li>
-                    <li><a href=""><i class="fab fa-twitter"></i></a></li>
-                    <li><a href=""><i class="fas fa-power-off"></i></a></li>
-                </ul>
-            </div>
-        </div>
-        <!--header menu end-->
-        <div class="main-container" id="main"></div>
+  <div id="app" class="wrapper" style="height:100vh;">
+    <div class="header" id="header">
+      <div class="header-menu">
+          <div class="title">
+            <span class="title-hide">
+              <span class="sec-span" style="margin-left: 82px;">Pluto</span>
+            </span>
+          </div>
+          <div class="sidebar-btn">
+              <i class="fas fa-bars"></i>
+          </div>
+          <ul>
+              <li><i class="fab fa-facebook-f"></i></li>
+              <li><i class="fab fa-twitter"></i></li>
+              <li><i class="fas fa-power-off"></i></li>
+          </ul>
+      </div>
     </div>
-    <!--wrapper end-->
+    <div style="width: 100%;height:inherit;display:flex;position: fixed;top:50px;">
+      <el-col style="width:250px;height: 100%; background-color:#545c64;display: flex;flex-direction: column;">
+        <center class="profile">
+          <img src="/dist/img/avatar.png" alt="" style=" margin: 20px 0;width: 100px;height: 100px;border-radius: 50%;">
+          <p style="color: #bbb;font-weight: 700;margin-bottom: 10px;">Admin</p>
+        </center>
+        <el-menu
+          style="flex:1 ;"
+          :default-active="defalut_page_num"
+          class="el-menu-vertical-demo"
+          text-color="#fff"
+          background-color="#545c64"
+          @select="menu_select"
+          active-text-color="#ffd04b">
+          <el-submenu index="1">
+            <template slot="title">
+              <i class="el-icon-location"></i>
+              <span>股票池</span>
+            </template>
+              <el-menu-item index="1-1">涨停池</el-menu-item>
+              <el-menu-item index="1-2">上升均线</el-menu-item>
+          </el-submenu>
+          <el-menu-item index="2">
+            <i class="el-icon-menu"></i>
+            <span slot="title">提交命令</span>
+          </el-menu-item>
+          <el-menu-item index="3">
+            <i class="el-icon-setting"></i>
+            <span slot="title">xxxxx</span>
+          </el-menu-item>
+        </el-menu>
+      </el-col>
+      <div id="main" style="flex:1;margin: 0;overflow: scroll;padding: 20px 0;">
+        <div id="buylimit_page" v-if="page_num=='1-1'">
+            <div class="container">
+              <div class="row pt-3 px-3">
+                  <div class="col">
+                      <p class="fs-3">涨停池</p>
+                  </div>
+                  <div class="col-5">
+                      <p class="fw-lighter text-muted text-sm-end" id="buylimit-filter">查询条件</p>
+                  </div>
+              </div>
+              <hr class="border-1 border-top" style="margin-top: -1rem !important">
+            </div>
+            <div id="content">
+                <div style="padding:20px">
+                    <table id="stats" class="display" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>股票</th>
+                                <th>代码</th>
+                                <th>涨停次数</th>
+                                <th>连板数</th>
+                                <th>最后涨停</th>
+                                <th>涨停至今</th>
+                            </tr>
+                        </thead>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div id="steepslopes_page" v-if="page_num=='1-2'">
+          <div class="container">
+            <div class="row p-3 justify-content-end">
+                <div class="col">
+                    <p class="fs-3">上升均线池(10)</p>
+                </div>
+                <div class="col-2">
+                        <span><button class="btn"><i class="fa fa-caret-left"></i></button></span>
+                        <span id="pooling-date">latest</span>
+                        <span><button class="btn"><i class="fa fa-caret-right"></i></button></span>
+                </div>
+            </div>
+            <hr class="border-1 border-top" style="margin-top: -1.5rem !important">
+          </div>
+          <div id="content">
+              <div style="padding:20px">
+                  <table id="stats" class="display" style="width:100%">
+                  </table>
+              </div>
+          </div>
+        </div>
+        <div id="command_page" v-if="page_num=='2'">
+          <div class="container">
+            <div class="mb-3">
+                <textarea class="form-control" 
+                id="command" 
+                rows="3"
+                placeholder="请输入命令，key:value格式"></textarea>
+            </div>
+            <button type="button" id="submit" class="btn btn-primary">提交</button>
+            <div>
+                <div style="padding:20px">
+                    <table id="output" class="display" style="width:100%">
+                    </table>
+                </div>
+            </div>
+          </div>
+        </div>
+        <el-dialog
+          id="my_dialog"
+          :modal-append-to-body="false"
+          :visible.sync="visible1"
+          width="800px"
+          :show-close="false"
+          >
+          <span slot="title" class="dialog-header">
+            <span style="color: gold;font-size:18px">Pluto</span>
+            <span style="color: white;font-size:18px">【{{stock_name.split(" ")[1]}}】K线</span>
+            <span class="el-icon-circle-close" @click="visible1 = false"></span>
+          </span>
+          <div style="height:600px"></div>
+          <div slot="footer" class="dialog-footer">
+            <el-button @click="visible1 = false">取 消</el-button>
+            <el-button type="primary" @click="visible1 = false">确 定</el-button>
+          </div>
+          
+        </el-dialog>
+
+      </div>
+    </div>
+  </div>
 </body>
+<script>
+  $.getJSON("./pluto/calendar/days", function(data){
+      calendar = data
+  })
+
+  function show_buylimt_page(){
+    function show_query_filters(){
+      var key = "buylimit.find_all.filter"
+      var filters = localStorage.getItem(key)
+      if (filters === null){
+          filters = {
+              "start": "20天前",
+              "end": new Date().toLocaleDateString,
+              "total_min": 1,
+              "total_max": 1,
+              "continuous_min": 1,
+              "continuous_max": 3,
+              "till_now": 10
+          }
+          localStorage.setItem(key, JSON.stringify(filters))
+      }else{
+          filters = JSON.parse(filters)
+      }
+      text = "从" + filters["start"] + "-" + filters["end"] +
+          "涨停" + filters["total_min"] + "-" + filters["total_max"] + "次,连板" +
+          filters["continuous_min"] + "-" + filters["continuous_max"] + "次,距今" + filters["till_now"] + "天"
+      $('#buylimit-filter').text(text)
+    }
+    var table = $('#stats').DataTable({
+      destroy:true,
+      paging: false,
+      searching: false,
+      info: false,
+      ajax: './data/buylimit_stats.txt',
+    });
+    $('#stats').on('click','tr',function(){
+        // console.log(this)
+        let data = table.row(this).data()
+        console.log('涨停池页面',data)
+        vm_data.visible1 = true
+        vm_data.stock_name = data[1]+" "+data[0]
+    })
+    show_query_filters()
+    $('#buylimit-filter').click(function(e){            
+    })
+  }
+
+  function show_command_page(){
+    function run_command() {
+      console.info($("#command").val())
+      $.post("/pluto/command", 
+      data = $("#command").val(),
+      function(data){
+        $('#output').DataTable({
+            paging: false,
+            searching: false,
+            info: false,
+            data: data.data,
+            columnDefs: data.cols
+        })
+      }),
+      dataType = 'json'
+    }
+    $("#submit").click(function(e){
+      run_command()
+    })
+  }
+
+  function show_steepslopes_page(){
+    $.getJSON("./pluto/pools/steep_slopes_pool", data = {
+            "win": 10
+    }, function(data){
+      var table2 = $('#stats').DataTable({
+        destroy:true,
+        paging: false,
+        searching: false,
+        info: false,
+        data: data,
+        columns: [
+            {title: 'Name'},
+            {title: 'Code'},
+            {title: 'Slope'}
+        ]
+      })
+      $('#stats').on('click','tr',function(){
+        // console.log(this)
+        let data2 = table2.row(this).data()
+        console.log('上升均线页面',data2)
+        vm_data.visible1 = true
+        vm_data.stock_name =data2[1]+" "+data2[0]
+      })
+    })
+  }
+  
+  function get_k_map_data(){
+    $.ajax({
+      url:''
+    })
+  }
+
+  let vm_data = {
+    defalut_page_num:'0',
+    page_num:'0',
+    visible1:false,
+    stock_name:''
+  }
+  var app = new Vue({
+    el:'#app',
+    data:vm_data,
+    mounted:function(){
+      var page = localStorage.getItem("cur_page")
+      if(page){
+        if(page=='buylimit'){
+          this.defalut_page_num = '1-1'
+          this.page_num = '1-1'
+          this.$nextTick(()=>{
+            show_buylimt_page()
+          })
+        }else if(page=='steepslopes'){
+          this.defalut_page_num = '1-2'
+          this.page_num='1-2'
+          show_steepslopes_page()
+        }else if(page=='command'){
+          this.defalut_page_num = '2'
+          this.page_num='2'
+          show_command_page()
+        }else{
+          this.defalut_page_num = '1-1'
+          this.page_num='1-1'
+          this.$nextTick(()=>{
+            show_buylimt_page()
+          })
+        }
+      }else{
+        this.defalut_page_num = '1-1'
+        this.page_num='1-1'
+        this.$nextTick(()=>{
+          show_buylimt_page()
+        })
+      }
+    },
+    methods:{
+      menu_select(item){
+        this.page_num = item
+        if(item=='1-1'){
+          localStorage.setItem("cur_page", 'buylimit')
+          this.$nextTick(()=>{
+            show_buylimt_page()
+          })
+        }else if(item=='1-2'){
+          localStorage.setItem("cur_page", 'steepslopes')
+          show_steepslopes_page()
+        }else if(item=='2'){
+          localStorage.setItem("cur_page", 'command')
+          show_command_page()
+        }else{
+          console.log('页面正在构建中...')
+        }
+      }
+    }
+  })
+</script>
 </html>
