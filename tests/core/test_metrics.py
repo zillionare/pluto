@@ -15,9 +15,12 @@ from pluto.core.metrics import (
     adjust_close_at_pv,
     convex_score,
     convex_signal,
+    evaluate,
     high_upper_lead,
+    hrsi_upline_confirm,
     last_wave,
     parallel_score,
+    plot_evaluate,
     short_signal,
     vanilla_score,
 )
@@ -1047,8 +1050,14 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
             end=datetime.datetime(2022, 11, 29, 10, 30),
         )
 
-        scores = [0.3438, 0.1511, 0.0332, 0.111, 0.0259]
-        # win = 20有弦弧交织
+        scores = [
+            0.34379747144583084,
+            0.15108640438664112,
+            0,
+            -0.039947695202297635,
+            -0.045484966701931424,
+        ]
+
         for i, win in enumerate([5, 10, 20, 30, 60]):
             ma = moving_average(bars["close"], win)[-10:]
             score = convex_score(ma)
@@ -1062,7 +1071,13 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
             end=datetime.datetime(2022, 11, 25, 11, 30),
         )
 
-        scores = [-0.2181, -0.238, 0.0405, -0.0213, -0.0435]
+        scores = [
+            -0.21809978225740267,
+            -0.2383043915074906,
+            -0.05683236651950412,
+            -0.054795742034912116,
+            -0.032579898834228516,
+        ]
         # win = 30有交织
         for i, win in enumerate([5, 10, 20, 30, 60]):
             ma = moving_average(bars["close"], win)[-10:]
@@ -1074,69 +1089,50 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
             "002782.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 24, 15)
         )
 
-        flag, scores = convex_signal(bars, ex_info=True)
-        self.assertEqual(flag, -1)
-        exp = [-0.549, -0.187, -0.141]
-        np.testing.assert_array_almost_equal(scores, exp, 3)
-
-        bars = await Stock.get_bars(
-            "002843.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 24, 15)
-        )
-
-        flag, scores = convex_signal(bars, ex_info=True)
-        self.assertEqual(flag, -1)
-        exp = [-0.973, -0.433, -0.130]
-        np.testing.assert_array_almost_equal(scores, exp, 3)
-
-        bars = await Stock.get_bars(
-            "000779.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 16, 10)
-        )
-
-        flag, scores = convex_signal(bars, ex_info=True)
-        self.assertEqual(flag, -1)
-
-        exp = [-0.002, -0.392, -0.136]
-        np.testing.assert_array_almost_equal(scores, exp, 3)
-
         # 信号为0的情况
-        bars = await Stock.get_bars(
-            "000779.XSHE", 30, FrameType.MIN30, end=datetime.datetime(2022, 11, 15, 15)
-        )
-
         flag, scores = convex_signal(bars, ex_info=True)
         self.assertEqual(flag, 0)
+        exp = [0.0, -0.25351905, 0.0]
+        np.testing.assert_array_almost_equal(scores, exp, 3)
 
-        exp = [0.5827277, -0.4453041, 0.18275976]
+        bars = await Stock.get_bars(
+            "600260.XSHG",
+            30,
+            FrameType.MIN30,
+            end=datetime.datetime(2022, 11, 7, 11, 30),
+        )
+
+        flag, scores = convex_signal(bars, ex_info=True)
+        self.assertEqual(flag, -2)
+        exp = [-0.3847302, -0.28655756, -0.06202173]
+        np.testing.assert_array_almost_equal(scores, exp, 3)
+
+        bars = await Stock.get_bars(
+            "600260.XSHG",
+            30,
+            FrameType.MIN30,
+            end=datetime.datetime(2022, 11, 4, 13, 30),
+        )
+
+        flag, scores = convex_signal(bars, ex_info=True)
+        self.assertEqual(flag, -1)
+
+        exp = [-0.51798796, 0.40477039, -0.058275]
         np.testing.assert_array_almost_equal(scores, exp, 3)
 
         # 信号为1的情况
         bars = await Stock.get_bars(
-            "000779.XSHE",
+            "600260.XSHG",
             30,
             FrameType.MIN30,
-            end=datetime.datetime(2022, 11, 11, 14, 30),
+            end=datetime.datetime(2022, 11, 17, 10, 30),
         )
 
         flag, scores = convex_signal(bars, ex_info=True)
         self.assertEqual(flag, 1)
 
-        exp = [2.91e-04, 1.46e-04, 1.93e-01]
+        exp = [0.58971222, 0.26562682, 0.24386732]
         np.testing.assert_array_almost_equal(scores, exp, 3)
-
-        bars = await Stock.get_bars(
-            "000779.XSHE", 200, FrameType.MIN30, end=datetime.datetime(2022, 11, 29, 10)
-        )
-
-        prev = 0
-        for i in range(30, 200):
-            xbars = bars[:i]
-            flag, scores = convex_signal(xbars, ex_info=True)
-            if xbars[-1]["frame"] == datetime.datetime(2022, 11, 22, 14):
-                print(scores)
-            if flag != prev and flag != 0:
-                (s5, s10, s20) = scores.tolist()
-                print(f"{xbars[-1]['frame']} {flag} {s5:.2%} {s10:.2%} {s20:.2%}")
-                prev = flag
 
     def test_high_upper_lead(self):
         data = np.array(
@@ -1828,37 +1824,276 @@ class MetricsTest(unittest.IsolatedAsyncioTestCase):
         np.testing.assert_array_almost_equal(actual[1], exp[1], 4)
 
     async def test_short_signal(self):
-        code = "000029.XSHE"
+        code = "600260.XSHG"
+
+        # 完全降性
         bars = await Stock.get_bars(
             code,
-            60,
-            FrameType.DAY,
-            end=tf.combine_time(datetime.date(2022, 10, 26), 15),
+            120,
+            FrameType.MIN30,
+            end=tf.combine_time(datetime.date(2022, 11, 10), 13, 30),
         )
 
         actual = await short_signal(bars)
-        exp = (-1, {"convex_scores": np.array([-2.58252667, -0.64213732, -0.00280491])})
+        exp = (-2, {"convex_scores": np.array([-0.46477849, -0.27217382, -0.15887269])})
         self.assertEqual(actual[0], exp[0])
         np.testing.assert_array_almost_equal(
             actual[1]["convex_scores"], exp[1]["convex_scores"], 4
         )
 
+        # 半降性
         bars = await Stock.get_bars(
             code,
-            60,
-            FrameType.DAY,
-            end=tf.combine_time(datetime.date(2022, 11, 26), 15),
+            120,
+            FrameType.MIN30,
+            end=tf.combine_time(datetime.date(2022, 11, 4), 11, 30),
         )
+
         actual = await short_signal(bars)
-        exp = (
-            -1,
-            {
-                "convex_scores": np.array([0.38292731, 0.39376815, 0.76887608]),
-                "top_rsi_dist": 5,
-            },
-        )
+        exp = (-1, {"convex_scores": np.array([-0.7345689, 0.40111031, -0.04114376])})
         self.assertEqual(actual[0], exp[0])
         np.testing.assert_array_almost_equal(
             actual[1]["convex_scores"], exp[1]["convex_scores"], 4
         )
+
+        # 长上影
+        bars = await Stock.get_bars(
+            code,
+            120,
+            FrameType.MIN30,
+            end=tf.combine_time(datetime.date(2022, 11, 17), 10),
+        )
+        actual = await short_signal(bars)
+        exp = (-1, {"top_rsi_dist": 0})
+
+        self.assertEqual(actual[0], exp[0])
         self.assertEqual(actual[1]["top_rsi_dist"], exp[1]["top_rsi_dist"])
+
+        # 穹顶压力
+        bars = await Stock.get_bars(
+            code,
+            120,
+            FrameType.MIN30,
+            end=tf.combine_time(datetime.date(2022, 11, 7), 10),
+        )
+        actual = await short_signal(bars)
+        exp = (-2, {"dom_pressure": 0.9, "win": 5, "dp_convex": -0.5936198979806573})
+
+        self.assertEqual(actual[0], exp[0])
+        self.assertAlmostEqual(actual[1]["dom_pressure"], exp[1]["dom_pressure"], 2)
+
+    async def test_evaluate(self):
+        code = "600260.XSHG"
+        end = tf.combine_time(datetime.date(2022, 11, 17), 15)
+        actual = await evaluate(code, end)
+        exp = {
+            29: {
+                "fired_at": np.datetime64("2022-11-02T14:00:00"),
+                "rsi": 38.82197454531255,
+                "convex_scores": np.array([-0.3391134, 0.06092602, -0.12091887]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.05284557415651192,
+            },
+            43: {
+                "fired_at": np.datetime64("2022-11-04T11:30:00"),
+                "rsi": 61.493112076954596,
+                "convex_scores": np.array([-0.7345689, 0.40111031, -0.04114376]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.020408143405366563,
+            },
+            44: {
+                "fired_at": np.datetime64("2022-11-04T13:30:00"),
+                "rsi": 61.49311207695458,
+                "cause_reason": "dompressure",
+                "dom_pressure": 0.9,
+                "win": 5,
+                "dp_convex": -0.517987962656492,
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.02857140076751319,
+            },
+            48: {
+                "fired_at": np.datetime64("2022-11-07T10:00:00"),
+                "rsi": 31.93886855312234,
+                "cause_reason": "dompressure",
+                "dom_pressure": 0.9,
+                "win": 5,
+                "dp_convex": -0.5936198979806573,
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.0083333250549108,
+            },
+            51: {
+                "fired_at": np.datetime64("2022-11-07T11:30:00"),
+                "rsi": 44.38312121102131,
+                "convex_scores": np.array([-0.3847302, -0.28655756, -0.06202173]),
+                "cause_reason": "convex",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.004149373488428698,
+            },
+            70: {
+                "fired_at": np.datetime64("2022-11-09T14:30:00"),
+                "rsi": 48.132566968195675,
+                "convex_scores": np.array([-0.15377613, -0.25936329, 0.09582468]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.036585427313929775,
+            },
+            76: {
+                "fired_at": np.datetime64("2022-11-10T13:30:00"),
+                "rsi": 31.406644220760565,
+                "convex_scores": np.array([-0.46477849, -0.27217382, -0.15887269]),
+                "cause_reason": "convex",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": -0.0125522887334657,
+            },
+            89: {
+                "fired_at": np.datetime64("2022-11-14T10:30:00"),
+                "rsi": 31.328398131275048,
+                "convex_scores": np.array([-0.45685879, -0.2124245, -0.1406614]),
+                "cause_reason": "convex",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.021097027312509398,
+            },
+            110: {
+                "fired_at": np.datetime64("2022-11-16T14:30:00"),
+                "rsi": 51.93022197670896,
+                "convex_scores": np.array([-0.42937629, 0.10615752, -0.02649438]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": -0.03797474976107851,
+            },
+            111: {
+                "fired_at": np.datetime64("2022-11-16T15:00:00"),
+                "rsi": 57.65337909773189,
+                "convex_scores": np.array([-0.21877231, 0.0, -0.01059321]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": -0.0336134117055904,
+            },
+            112: {
+                "fired_at": np.datetime64("2022-11-17T10:00:00"),
+                "rsi": 80.23903191295676,
+                "cause_reason": "upper_line",
+                "top_rsi_dist": 0,
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.008130073421291018,
+            },
+        }
+        self.assertEqual(len(actual), len(exp))
+        actual_keys = set(actual.keys())
+        exp_keys = set(exp.keys())
+        diff = actual_keys.difference(exp_keys)
+        self.assertEqual(len(diff), 0)
+
+    async def test_plot_evaluate(self):
+        code = "600260.XSHG"
+        end = tf.combine_time(datetime.date(2022, 11, 17), 15)
+        actual = await plot_evaluate(code, end)
+        exp = {
+            29: {
+                "fired_at": np.datetime64("2022-11-02T14:00:00"),
+                "rsi": 38.82197454531255,
+                "convex_scores": np.array([-0.3391134, 0.06092602, -0.12091887]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.05284557415651192,
+            },
+            43: {
+                "fired_at": np.datetime64("2022-11-04T11:30:00"),
+                "rsi": 61.493112076954596,
+                "convex_scores": np.array([-0.7345689, 0.40111031, -0.04114376]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.020408143405366563,
+            },
+            44: {
+                "fired_at": np.datetime64("2022-11-04T13:30:00"),
+                "rsi": 61.49311207695458,
+                "cause_reason": "dompressure",
+                "dom_pressure": 0.9,
+                "win": 5,
+                "dp_convex": -0.517987962656492,
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.02857140076751319,
+            },
+            48: {
+                "fired_at": np.datetime64("2022-11-07T10:00:00"),
+                "rsi": 31.93886855312234,
+                "cause_reason": "dompressure",
+                "dom_pressure": 0.9,
+                "win": 5,
+                "dp_convex": -0.5936198979806573,
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.0083333250549108,
+            },
+            51: {
+                "fired_at": np.datetime64("2022-11-07T11:30:00"),
+                "rsi": 44.38312121102131,
+                "convex_scores": np.array([-0.3847302, -0.28655756, -0.06202173]),
+                "cause_reason": "convex",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.004149373488428698,
+            },
+            70: {
+                "fired_at": np.datetime64("2022-11-09T14:30:00"),
+                "rsi": 48.132566968195675,
+                "convex_scores": np.array([-0.15377613, -0.25936329, 0.09582468]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.036585427313929775,
+            },
+            76: {
+                "fired_at": np.datetime64("2022-11-10T13:30:00"),
+                "rsi": 31.406644220760565,
+                "convex_scores": np.array([-0.46477849, -0.27217382, -0.15887269]),
+                "cause_reason": "convex",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": -0.0125522887334657,
+            },
+            89: {
+                "fired_at": np.datetime64("2022-11-14T10:30:00"),
+                "rsi": 31.328398131275048,
+                "convex_scores": np.array([-0.45685879, -0.2124245, -0.1406614]),
+                "cause_reason": "convex",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.021097027312509398,
+            },
+            110: {
+                "fired_at": np.datetime64("2022-11-16T14:30:00"),
+                "rsi": 51.93022197670896,
+                "convex_scores": np.array([-0.42937629, 0.10615752, -0.02649438]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": -0.03797474976107851,
+            },
+            111: {
+                "fired_at": np.datetime64("2022-11-16T15:00:00"),
+                "rsi": 57.65337909773189,
+                "convex_scores": np.array([-0.21877231, 0.0, -0.01059321]),
+                "cause_reason": "convex_remind",
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": -0.0336134117055904,
+            },
+            112: {
+                "fired_at": np.datetime64("2022-11-17T10:00:00"),
+                "rsi": 80.23903191295676,
+                "cause_reason": "upper_line",
+                "top_rsi_dist": 0,
+                "end": datetime.datetime(2022, 11, 17, 15, 0),
+                "profits": 0.008130073421291018,
+            },
+        }
+        self.assertEqual(len(actual), len(exp))
+        actual_keys = set(actual.keys())
+        exp_keys = set(exp.keys())
+        diff = actual_keys.difference(exp_keys)
+        self.assertEqual(len(diff), 0)
+
+    async def test_hrsi_upline_confirm(self):
+        code = "600260.XSHG"
+        end = tf.combine_time(datetime.date(2022, 11, 17), 15)
+        bars = await Stock.get_bars(code, 60, FrameType.MIN30, end)
+        actual = hrsi_upline_confirm(bars)
+        exp = 7
+        self.assertEqual(actual, exp)

@@ -1,6 +1,6 @@
 [tool]
 [tool.poetry]
-name = "pluto"
+name = "zillionare-pluto"
 version = "0.1.0"
 homepage = "https://github.com/zillionare/pluto"
 description = "Skeleton project created by Python Project Wizard (ppw)."

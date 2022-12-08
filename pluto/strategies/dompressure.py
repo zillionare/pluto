@@ -1,10 +1,13 @@
+from typing import Tuple
+
 import numpy as np
 import talib as ta
 from coretypes import BarsArray
-from omicron.talib import pct_error
+
+from pluto.core.metrics import convex_score
 
 
-def dom_pressure(bars: BarsArray, win: int) -> float:
+def dom_pressure(bars: BarsArray, win: int) -> Tuple:
     """判断穹顶压力
 
     原理：
@@ -17,54 +20,24 @@ def dom_pressure(bars: BarsArray, win: int) -> float:
     win: 均线窗口，win的值不超过30，比如：当win=10，窗口为10的收盘价移动平均值的穹顶压力
 
     Returns:
-    返回float：最后七个bar的最高价冲过压力的数量/7,
-    比如：最后七个bar中的第二,三个最高价冲过压力，返回2/7)
+    返回float：最后七个bar的最高价冲过压力的数量/10,
+    比如：最后十个bar中的第二,三个最高价冲过压力，返回2/10)
     最后七个bars没有穹顶压力，或传入数据不足37个，返回None。
 
     """
-    assert win in (5, 10, 20, 30), "传入均线窗口必须[5, 10, 20, 30]中的数字！"
-    if len(bars) < 37:
-        return None
-
-    if (win == 10) or (win == 5):
-        convexity = -3e-3
-    elif win == 20:
-        convexity = -2e-3
-    elif win == 30:
-        convexity = -1e-3
+    assert len(bars) >= 30, "传入行情数据的不得少于30！"
 
     close = bars["close"]
     high = bars["high"]
-    close = close.astype(np.float64)
+    low = bars["low"]
 
-    index = np.arange(7)
-    ma = ta.MA(close, win)[-7:]
-    cls = close[-7:]
-    hig = high[-7:]
-    z = np.polyfit(index, ma, 3)
-    p = np.poly1d(z)
-    ma_hat = p(index)
-    error = pct_error(ma, ma_hat)
-    # max_ma_hat = np.nanmax(ma_hat)
+    ma = ta.MA(close, win)[-10:]
+    score = convex_score(ma)
 
-    # 二阶导：
-    coef = list(p)
-    convex = index * 6 * coef[0] + 2 * coef[1]
-
-    if (
-        (np.count_nonzero(convex <= 0) > 5)
-        and (error < 3e-3)
-        and (np.mean(convex) < convexity)
-    ):
-        # and (cls[-1] < max_ma_hat)
-        hig_break = hig > ma
-        hig_break_num = np.count_nonzero(hig_break)
-        cls_under_num = np.count_nonzero(cls < ma)
-
-        if win != 5:
-            # close以低于ma为主，且至少一个bar的high高于ma,确认压力
-            if (cls_under_num > 3) and (hig_break_num >= 1):  # and (not hig_break[-1])
-                return np.count_nonzero(hig_break) / 7
-        elif win == 5:
-            if hig_break_num >= 3:  # and (not hig_break[-1])
-                return np.count_nonzero(hig_break) / 7
+    # 最后一个bar如果全部在均线之上（low > ma)则不满足条件；如果收盘价在ma上方不远，符合条件
+    last_bar_status = (
+        (close[-1] < ma[-1] * 1.01) and (low[-1] < ma[-1]) and ma[-1] < np.max(ma)
+    )
+    if score < -0.5 and last_bar_status and ma[-1] > ma[0]:
+        breakouts = np.count_nonzero((high[-10:] >= ma))
+        return breakouts / 10, score
