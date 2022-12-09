@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 import arrow
+import cfg4py
 import fire
 import httpx
 from omicron import tf
@@ -23,6 +24,8 @@ from pluto.store.steep_slopes_pool import SteepSlopesPool
 from pluto.store.touch_buy_limit_pool import TouchBuyLimitPoolStore
 
 logger = logging.getLogger(__name__)
+
+cfg4py.init(os.path.expanduser("~/zillionare/pluto/config"))
 
 pools = {
     "涨停": BuyLimitPoolStore(),
@@ -58,14 +61,14 @@ def _parse_as_str_array(args: Any):
 
 
 def _save_proc_info(port, proc):
-    path = os.path.dirname(__file__)
+    path = os.path.expanduser("~/zillionare/pluto")
     file = os.path.join(path, "proc")
     with open(file, "w") as f:
         f.writelines(json.dumps({"port": port, "proc": proc}))
 
 
 def _read_proc_info():
-    path = os.path.dirname(__file__)
+    path = os.path.expanduser("~/zillionare/pluto")
     file = os.path.join(path, "proc")
     try:
         with open(file, "r") as f:

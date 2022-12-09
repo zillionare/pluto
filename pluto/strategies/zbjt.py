@@ -10,6 +10,7 @@
 7. 启动时，当天大盘较平稳，最终收涨0.09%。
 """
 import datetime
+import os
 
 import cfg4py
 from coretypes import BarsArray
@@ -27,7 +28,8 @@ class StrategyZBJT(BaseStrategy):
         super().__init__()
 
         cfg = cfg4py.get_instance()
-        self._buylimit_store = BuyLimitPoolStore(cfg.pluto.store_path)
+        _store = os.path.expanduser(cfg.pluto.store)
+        self._buylimit_store = BuyLimitPoolStore(_store)
 
     async def backtest(self, start: datetime.date, end: datetime.date, params: dict):
         pass

@@ -38,6 +38,9 @@ def serve_static_files(app):
 
 
 async def init(app, loop):
+    cfg_folder = os.path.expanduser("~/zillionare/pluto/config")
+    cfg4py.init(cfg_folder)
+
     await omicron.init()
     blp = BuyLimitPoolStore()
     tblp = TouchBuyLimitPoolStore()
@@ -52,8 +55,6 @@ async def init(app, loop):
 
 
 def start(port: int = 2712):
-    cfg4py.init(os.path.expanduser("~/zillionare/pluto"))
-
     application.register_listener(init, "before_server_start")
     application.blueprint(bp)
     serve_static_files(application)
