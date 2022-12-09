@@ -19,7 +19,7 @@ async def handle_cmd(request):
 
     cmd = params.get("cmd")
     commands = "add_short_sample"
-    if not cmd in commands:
+    if cmd not in commands:
         raise SanicException(f"cmd must be one of {commands}, given {cmd}")
 
     if cmd == "add_short_sample":

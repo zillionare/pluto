@@ -18,7 +18,9 @@ logging:
     handlers:
       - console
     level: INFO
+
 tz: Asia/Shanghai
+
 redis:
   dsn: redis://192.168.100.101:56379
 
@@ -29,5 +31,6 @@ influxdb:
   bucket_name: zillionare
   enable_compress: true
   max_query_size: 5000
+
 pluto:
-  store: /home/app/zillionare/pluto/pluto.zarr
+  store: ~/zillionare/pluto/pluto.zarr

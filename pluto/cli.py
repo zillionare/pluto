@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 import arrow
+import cfg4py
 import fire
 import httpx
 from omicron import tf
@@ -23,6 +24,8 @@ from pluto.store.steep_slopes_pool import SteepSlopesPool
 from pluto.store.touch_buy_limit_pool import TouchBuyLimitPoolStore
 
 logger = logging.getLogger(__name__)
+
+cfg4py.init(os.path.expanduser("~/zillionare/pluto/config"))
 
 pools = {
     "涨停": BuyLimitPoolStore(),
@@ -58,14 +61,14 @@ def _parse_as_str_array(args: Any):
 
 
 def _save_proc_info(port, proc):
-    path = os.path.dirname(__file__)
+    path = os.path.expanduser("~/zillionare/pluto")
     file = os.path.join(path, "proc")
     with open(file, "w") as f:
         f.writelines(json.dumps({"port": port, "proc": proc}))
 
 
 def _read_proc_info():
-    path = os.path.dirname(__file__)
+    path = os.path.expanduser("~/zillionare/pluto")
     file = os.path.join(path, "proc")
     try:
         with open(file, "r") as f:
@@ -151,23 +154,6 @@ def serve(port: int = 2712):
             break
         else:
             time.sleep(1)
-
-
-def stop():
-    info = _read_proc_info()
-    if info is None:
-        print("未发现正在运行的pluto服务")
-        return
-
-    proc = info["proc"]
-    try:
-        os.kill(proc, signal.SIGKILL)
-    except ProcessLookupError:
-        sys.exit()
-    if not is_service_alive():
-        print("pluto已停止运行")
-    else:
-        print("停止pluto服务失败，请手工停止。")
 
 
 def pooling(pool: str, date: str = None):

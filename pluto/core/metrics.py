@@ -9,13 +9,11 @@ import talib as ta
 from coretypes import BarsArray, FrameType, bars_dtype
 from numpy.typing import NDArray
 from omicron import tf
-from omicron.extensions import find_runs, price_equal, top_n_argpos
+from omicron.extensions import find_runs, price_equal
 from omicron.models.security import Security
 from omicron.models.stock import Stock
 from omicron.talib import moving_average, peaks_and_valleys, rsi_watermarks
 from plotly.subplots import make_subplots
-
-from pluto.strategies.dompressure import dom_pressure
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +251,7 @@ def convex_signal(
     wins=(5, 10, 20),
     mas: List[NDArray] = None,
     ex_info=False,
-    thresh: float = 3e-3,
+    thresh: float = 1.5e-3,
 ) -> Tuple[int, List[float]]:
     """根据均线的升降性，判断是否发出买入或者卖出信号
 
@@ -265,7 +263,7 @@ def convex_signal(
         thresh: 决定均线是按直线拟合还是按曲线拟合的阈值
 
     Returns:
-        如果出现空头信号，则返回-1，多头信号则返回1，否则返回0；如果ex_info为True，还将返回详细评估分数。
+        如果出现空头信号，则返回-1或-2(-1表示全部为降性图形， -2表示部分为降性图形)，多头信号则返回1，否则返回0；如果ex_info为True，还将返回详细评估分数。
     """
     if mas is None:
         assert bars is not None, "either 'bars' or 'mas' should be presented"
@@ -280,16 +278,22 @@ def convex_signal(
     scores = []
     for ma in mas:
         assert len(ma) >= 10, "length of moving average array should be at least 10."
-        scores.append(convex_score(ma[-10:], thresh=thresh))
+        score = convex_score(ma[-7:], thresh=thresh)
+        scores.append(score)
 
     scores = np.array(scores)
 
-    # 如果均线为0，则表明未表态
-    non_zero = np.count_nonzero(scores)
-
-    if np.count_nonzero(scores > 0) == non_zero:
+    if np.count_nonzero(scores >= 0.05) == len(scores):
         flag = 1
-    elif np.count_nonzero(scores < 0) == non_zero:
+
+    elif np.count_nonzero(scores <= -0.05) == len(scores):
+        flag = -2
+
+    elif (
+        np.count_nonzero(scores <= -0.2) > 0
+        and scores[0] < 0
+        and np.count_nonzero(scores < 0) >= 2
+    ):
         flag = -1
     else:
         flag = 0
@@ -300,13 +304,14 @@ def convex_signal(
         return flag
 
 
-def convex_score(ts: NDArray, thresh: float = 2e-3) -> float:
+def convex_score(ts: NDArray, thresh: float = 1.5e-3) -> float:
     """评估时间序列`ts`的升降性
 
     如果时间序列中间的点都落在端点连线上方，则该函数为凸函数；反之，则为凹函数。使用点到连线的差值的
     平均值来表明曲线的凹凸性。进一步地，我们将凹凸性引申为升降性，并且对单调上升/下降（即直线)，我们
     使用平均涨跌幅来表明其升降性，从而使得在凹函数、凸函数和直线三种情况下，函数的返回值都能表明
     均线的未来升降趋势。
+
     Args:
         ts:  时间序列
         n: 用来检测升降性的元素个数。
@@ -361,31 +366,25 @@ async def short_signal(
         ex_info: 是否返回附加信息。这些信息可用以诊断
         upper_limit: 上影相对于实体最高部分的长度比
 
+    Returns:
+        返回类型为Tuple[int, Optional[dict]]:
+        第一个代表当前bars最后一个数据风险类型，
+        0，表示没有风险，-1表示具有一定风险，仅起到提醒作用（一般是具有高RSI长上影特征或半降性图形特征），
+        -2表示风险较大应直接卖出（一般是穹顶压力或降性图形特征）；
+        第二个为该类型的详情信息。
+
     """
+
+    assert len(bars) >= 30, "传入行情数据长度不得少于30！"
+
     info = {}
 
-    mas = []
     close = bars["close"]
+    close = close.astype(np.float64)
+    rsi = ta.RSI(close, 6)
 
-    wins = (5, 10, 20)
-    for win in wins:
-        mas.append(moving_average(close, win)[-10:])
-
-    # 检测多均线拐头或者下降压力
-    flag, scores = convex_signal(mas=mas, ex_info=ex_info)
-    info.update({"convex_scores": scores})
-    if flag == -1:
-        return flag, info
-
-    # 检测穹顶压力
-    for win, score in zip(wins, scores):
-        # if score < -0.3:  # todo: need to tune this parameter
-        dp = dom_pressure(bars, win)
-        if dp is None:
-            continue
-        info.update({"dom_pressure": dp, "win": win})
-        if dp > 0:
-            return -1, info
+    if rsi[-1] <= 30:
+        return 0, None
 
     # 检测8周期内是否出现RSI高位，并且已经触发回调
     high = bars["high"]
@@ -418,6 +417,39 @@ async def short_signal(
                 if upper_rsi[-1] >= prev_mean_rsi:
                     info.update({"top_rsi_dist": dist})
                     return -1, info
+
+    wins = (5, 10, 20)
+    mas = []
+    for win in wins:
+        ma = moving_average(close, win)
+        mas.append(ma[-10:])
+        if win == 5:
+            ma5 = ma
+
+    # 检测穹顶压力
+    low = bars["low"]
+    dp_ma = ma5[-10:]
+    score = convex_score(dp_ma)
+    # 最后一个bar如果全部在均线之上（low > ma)则不满足条件；如果收盘价在ma上方不远，符合条件
+    last_bar_status = (
+        (close[-1] < dp_ma[-1] * 1.01)
+        and (low[-1] < dp_ma[-1])
+        and (dp_ma[-1] < np.max(dp_ma))
+    )
+    if score < -0.5 and last_bar_status and dp_ma[-1] > dp_ma[0]:
+        breakouts = np.count_nonzero((high[-10:] >= dp_ma))
+        if breakouts > 0:
+            info.update({"dom_pressure": breakouts / 10, "win": 5, "dp_convex": score})
+            return -2, info
+
+    # 检测多均线拐头或者下降压力
+    flag, scores = convex_signal(mas=mas, ex_info=ex_info)
+    if flag == -2:
+        info.update({"convex_scores": scores})
+        return flag, info
+    elif flag == -1 and np.all(rsi[-4:] > 30):
+        info.update({"convex_scores": scores})
+        return flag, info
 
     # 其它情况
     return 0, info
@@ -458,37 +490,61 @@ def high_upper_lead(bars: NDArray, upper_thresh: float = 0.015) -> bool:
 
 
 async def evaluate(code: str, end: datetime, ex_info=True, upper_thresh: float = 0.015):
-    bars = await Stock.get_bars(code, 60, FrameType.MIN30, end=end)
+    """计算传入code, 以end为截止时间，bars[30: -5]中出现风险警报的数据
+
+    Args:
+        code: 股票代码
+        end: 截止时间
+        ex_info: 额外信息
+        upper_thresh: 上影比例
+
+    Returns:
+        返回字典，keys为bars[30: -5]中出现风险提醒的index；
+        values是相对应风险触发，相应RSI值，
+        触发原因（如果是穹顶压力，增加压力值，win均线窗口值，升降性分数；
+        如果是长上影线，增加距离风险点的距离；升降性原因，增加升降性分数），
+        终止时间，后5天内的超额收益
+    """
+    bars = await Stock.get_bars(code, 120, FrameType.MIN30, end=end)
     results = {}
-    if len(bars) < 60:
+    if len(bars) < 120:
         return results
 
-    close = bars["close"]
+    close = bars["close"].astype(np.float64)
+    rsi = ta.RSI(close, 6)
 
-    for i in range(30, 55):
+    for i in range(30, 115):
         xbars = bars[:i]
         sell, info = await short_signal(xbars, ex_info, upper_thresh)
 
-        if sell == -1:
+        if sell < 0:
             sub_results = {}
             sub_results["fired_at"] = bars["frame"][i - 1]
-            sub_results["convex_scores"] = info["convex_scores"]
+            sub_results["rsi"] = rsi[i - 1]
 
-            con = len(info)
-            if con == 1:
-                # 由convex_signal引起的卖点触发
-                sub_results["cause_reason"] = "convex"
-
-            elif con == 2:
+            if sell == -1:
                 #  由八周期内高RSI的长上影引起
-                sub_results["cause_reason"] = "upper_line"
-                sub_results["top_rsi_dist"] = info["top_rsi_dist"]
+                if list(info.keys()).count("top_rsi_dist") > 0:
+                    sub_results["cause_reason"] = "upper_line"
+                    sub_results["top_rsi_dist"] = info["top_rsi_dist"]
 
-            elif con == 3:
-                # 由穹顶压力引起
-                sub_results["cause_reason"] = "dompressure"
-                sub_results["dom_pressure"] = info["dom_pressure"]
-                sub_results["win"] = info["win"]
+                elif list(info.keys()).count("convex_scores") > 0:
+                    # 由convex_signal引起的卖点触发
+                    sub_results["convex_scores"] = info["convex_scores"]
+                    sub_results["cause_reason"] = "convex_remind"
+
+            elif sell == -2:
+                con = len(info)
+                if con == 1:
+                    # 由convex_signal引起的卖点触发
+                    sub_results["convex_scores"] = info["convex_scores"]
+                    sub_results["cause_reason"] = "convex"
+                elif con == 3:
+                    # 由穹顶压力引起
+                    sub_results["cause_reason"] = "dompressure"
+                    sub_results["dom_pressure"] = info["dom_pressure"]
+                    sub_results["win"] = info["win"]
+                    sub_results["dp_convex"] = info["dp_convex"]
 
             # 计算后五天收益
             close_ = close[i - 1 : i + 5]
@@ -498,16 +554,16 @@ async def evaluate(code: str, end: datetime, ex_info=True, upper_thresh: float =
             cmin = np.min(close_[1:])
             cmax = np.max(close_[1:])
 
-            if np.all(close_ > c0):  # 单调上涨，错误卖出
-                profit = -1 * (cmax / c0 - 1)
-            elif np.all(close < c0):  # 单调下跌，正确！
-                profit = c0 / cmin - 1
+            if np.all(close_[1:] >= c0):  # 单调上涨，错误卖出
+                profit = 1 - cmax / c0
+            elif np.all(close_[1:] <= c0):  # 单调下跌，正确！
+                profit = 1 - cmin / c0
             elif imin < imax:  # 先下跌再上涨
-                profit = c0 / cmin - 1
+                profit = 1 - cmin / c0
             elif (imin > imax) and (cmax - c0 < abs(c0 - cmin)):  # 先上涨再下跌，上涨较小，判断正确
-                profit = c0 / cmin - 1
+                profit = 1 - cmin / c0
             elif (imin > imax) and (cmax - c0 >= abs(c0 - cmin)):  # 先上涨再下跌，上涨较大
-                profit = -1 * (cmax / c0 - 1)
+                profit = 1 - cmax / c0
             else:  # 一般为涨停，判断正确
                 print(code, c0, close_[1:], "\n")
                 profit = 0
@@ -537,7 +593,7 @@ async def plot_evaluate(
 
     if len(results) > 0:
         name = await Security.alias(code)
-        bars = await Stock.get_bars(code, 60, FrameType.MIN30, end=end)
+        bars = await Stock.get_bars(code, 120, FrameType.MIN30, end=end)
         frame = bars["frame"]
         close = bars["close"]
         close = close.astype(np.float64)
@@ -593,6 +649,7 @@ async def plot_evaluate(
             row=2,
             col=1,
         )
+        fig.add_hline(y=30, row=2, col=1)
 
         iframes = list(results.keys())
         for iframe in iframes:
@@ -610,25 +667,60 @@ async def plot_evaluate(
                     line=dict(color="blue", width=1),
                     opacity=0.5,
                 )
-                # fig.add_annotation(
-                #         x=index[iframe], y=0.2, xref='x', yref='paper',
-                #         showarrow=False, xanchor='left', text='降性')
+                convex_scores = sub_result["convex_scores"]
+                convex_scores = np.around(convex_scores, 6)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[index[iframe]],
+                        y=[high[iframe] * 1.01],
+                        mode="markers",
+                        marker_symbol="triangle-down",
+                        marker_line_color="midnightblue",
+                        marker_color="blue",
+                        marker_line_width=1,
+                        marker_size=8,
+                        name="降性",
+                        text=f"{convex_scores},{frame[iframe]}",
+                    ),
+                    row=1,
+                    col=1,
+                )
 
-                # 线太多，杂乱
-                # for win, str_win in zip((MA5, MA10, MA20), (5, 10, 20)):
-                #         n = 10 if str_win == 20 else 7
-                #         ma = win[iframe+1-n:iframe+1]
-                #         ma_hat = np.arange(n) * (ma[-1]-ma[0])/(n - 1) + ma[0]
-                #         fig.add_trace(go.Scatter(x=index[iframe+1-n:iframe+1], y=ma_hat,
-                #                                 mode='lines',
-                #                                 line=dict(color='black', width = 1.5),
-                #                                 opacity=0.5,
-                #                                 text=frame[iframe+1-n:iframe+1],
-                #                                 name=f'MA_{str_win}_hat'),
-                #                                 row = 1,  col = 1)
+            elif cause_type == "convex_remind":
+                fig.add_shape(
+                    type="line",
+                    xref="x",
+                    yref="paper",
+                    x0=index[iframe],
+                    y0=0,
+                    x1=index[iframe],
+                    y1=1,
+                    line=dict(color="purple", width=1),
+                    opacity=1,
+                )
+                convex_scores = sub_result["convex_scores"]
+                convex_scores = np.around(convex_scores, 6)
+                fig.add_trace(
+                    go.Scatter(
+                        x=[index[iframe]],
+                        y=[high[iframe] * 1.01],
+                        mode="markers",
+                        marker_symbol="triangle-down",
+                        marker_line_color="midnightblue",
+                        marker_color="purple",
+                        marker_line_width=1,
+                        marker_size=8,
+                        name="降性",
+                        text=f"{convex_scores},{frame[iframe]}",
+                    ),
+                    row=1,
+                    col=1,
+                )
 
             elif cause_type == "dompressure":
                 dom_win = sub_result["win"]
+                dp_convex = sub_result["dp_convex"]
+                dp_convex = np.around(dp_convex, 6)
                 fig.add_shape(
                     type="line",
                     xref="x",
@@ -640,15 +732,13 @@ async def plot_evaluate(
                     line=dict(color="black", width=1),
                     opacity=0.5,
                 )
-                # fig.add_annotation(
-                #         x=index[iframe], y=0.4, xref='x', yref='paper',
-                #         showarrow=False, xanchor='left', text='穹顶')
                 fig.add_trace(
                     go.Scatter(
                         x=index[iframe - 6 : iframe + 1],
                         y=ta.MA(close, dom_win)[iframe - 6 : iframe + 1],
                         mode="lines",
                         line=dict(width=3, color="black"),
+                        text=f"{dp_convex}",
                         name=f"MA_{dom_win}穹顶",
                     ),
                     row=1,
@@ -668,9 +758,6 @@ async def plot_evaluate(
                     line=dict(color="orange", width=1),
                     opacity=1,
                 )
-                # fig.add_annotation(
-                #         x=index[iframe], y=0.6, xref='x', yref='paper',
-                #         showarrow=False, xanchor='left', text='上影')
                 fig.add_trace(
                     go.Scatter(
                         x=[index[iframe - dist]],
@@ -715,3 +802,54 @@ async def plot_evaluate(
         fig.show()
 
         return results
+
+
+def hrsi_upline_confirm(
+    bars: NDArray, upper_thresh: float = 0.015, hist_long: int = 16
+) -> int:
+    """计算传入行情数据最近的历史长度hist_long中出现过处于高位RSI带有长上影线的距离
+
+    Args:
+    bars: 具有时间序列的行情数据，可以是任意时间级别
+    upper_thresh: K线上影部分相比较实体最高部分的比，默认参数适合MIN30的时间单位
+    hist_long: 检测最后的历史数据长度
+
+    Returns:
+    dist: 返回dist是在规定历史长度中有高位RSI并带有长上影的距离。
+        例如dist==1, 传入历史数据的倒数第二个满足条件。
+        没有则返回None
+    """
+
+    assert len(bars) >= 60, "传入行情数据不得少于60！"
+    close = bars["close"]
+    close = close.astype(np.float64)
+    rsi = ta.RSI(close, 6)
+
+    # 检测16周期内是否出现RSI高位，并且已经触发回调
+    high = bars["high"]
+    open_ = bars["open"]
+    upper_line = high / np.maximum(close, open_) - 1
+    iupper = np.where(upper_line >= upper_thresh)[0]
+    condlist = [upper_line >= upper_thresh, upper_line < upper_thresh]
+    choicelist = [high, close]
+    new_price = np.select(condlist, choicelist)
+
+    new_price = new_price.astype(np.float64)
+    rsi = ta.RSI(new_price, 6)
+    pivots = peaks_and_valleys(new_price)
+    ipivots = np.where(pivots == 1)[0]
+    ihigh_upper = np.intersect1d(iupper, ipivots)
+
+    if len(ihigh_upper) > 0:
+        dist = len(close) - 1 - ihigh_upper[-1]
+        if dist <= hist_long:
+            upper_rsi = rsi[ihigh_upper]
+            upper_rsi = upper_rsi[~np.isnan(upper_rsi)]
+            if (len(upper_rsi) == 1) and (upper_rsi[-1] >= 70):
+                return dist
+            elif (len(upper_rsi) == 2) and (upper_rsi[1] >= upper_rsi[0]):
+                return dist
+            elif len(upper_rsi) > 2:
+                prev_mean_rsi = np.mean([upper_rsi[-2], upper_rsi[-3]])
+                if upper_rsi[-1] >= prev_mean_rsi:
+                    return dist
