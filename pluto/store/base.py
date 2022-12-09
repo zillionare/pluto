@@ -1,15 +1,16 @@
 import datetime
+import logging
 import os
 from typing import Any, List
-import cfg4py
 
+import arrow
+import cfg4py
 import zarr
 from omicron import tf
-import arrow
-import logging
 from omicron.models.security import Security
 
 logger = logging.getLogger(__name__)
+
 
 class ZarrStore(object):
     def __init__(self, path=None):
@@ -20,11 +21,7 @@ class ZarrStore(object):
             print(e)
             pluto_path = None
 
-        self._store_path = (
-            path
-            or os.environ.get("pluto_store_path")
-            or pluto_path
-        )
+        self._store_path = path or os.environ.get("pluto_store_path") or pluto_path
 
         self._store = zarr.open(self._store_path, mode="a")
 
@@ -95,7 +92,7 @@ class ZarrStore(object):
         """
         dt = self._day_closed(dt or arrow.now().date())
 
-        if getattr(self, 'pooled', None) is not None:
+        if getattr(self, "pooled", None) is not None:
             if tf.date2int(dt) in self.pooled:
                 logger.info("%s already pooled", dt)
                 return

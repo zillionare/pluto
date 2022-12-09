@@ -9,9 +9,9 @@ import pkg_resources
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sanic import Sanic
 
+from pluto.store.buy_limit_pool import BuyLimitPoolStore
 from pluto.store.steep_slopes_pool import SteepSlopesPool
 from pluto.store.touch_buy_limit_pool import TouchBuyLimitPoolStore
-from pluto.store.buy_limit_pool import BuyLimitPoolStore
 from pluto.web.blueprints import bp
 
 application = Sanic("pluto")
