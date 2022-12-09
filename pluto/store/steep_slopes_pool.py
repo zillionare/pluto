@@ -31,7 +31,7 @@ class SteepSlopesPool(ZarrStore):
         date = tf.date2int(date)
         super().save(records, key=f"{date}")
 
-        pooled = self.data.attrs.get(f"pooled", [])
+        pooled = self.data.attrs.get("pooled", [])
         pooled.append(date)
         self.data.attrs["pooled"] = pooled
 

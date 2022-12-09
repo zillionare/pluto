@@ -1,5 +1,3 @@
-"""Main module."""
-"""Main module."""
 import logging
 import os
 
