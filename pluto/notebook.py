@@ -1,4 +1,3 @@
-
 ######
 
 # 此文件中的代码是实验性的，主要目的是以交互式方式在vscode中运行。
@@ -18,13 +17,16 @@ from pluto.core.metrics import convex_score
 import numpy as np
 
 codes = []
+
+
 async def init():
     global codes
     cfg4py.init(os.path.expanduser("~/zillionare/pluto"))
-    await omicron.init()    
+    await omicron.init()
 
     codes = await Security.select().types(["stock"]).eval()
     codes = [code for code in codes if await is_main_board(code)]
+
 
 async def ascending_ma_lines():
     global codes
@@ -44,11 +46,12 @@ async def ascending_ma_lines():
                 scores.append(score)
                 mas.append(ma[-1])
         if len(scores) == 3:
-            convergencey = np.max(mas)/np.min(mas) - 1
+            convergencey = np.max(mas) / np.min(mas) - 1
             results.append((name, code, *scores, convergencey))
 
     cols = "name,code,s5,s10,s20,convergencey".split(",")
     return pd.DataFrame(results, columns=cols)
+
 
 async def main():
     await init()

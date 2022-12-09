@@ -42,7 +42,7 @@ def handle_blp_query(start: str, end: str = None):
         cols = result.dtype.names
         resp = {
             "data": result.tolist(),
-            "cols": [{"title": v, "targets": i} for i,v in enumerate(cols)]
+            "cols": [{"title": v, "targets": i} for i, v in enumerate(cols)],
         }
         return response.json(body=resp, dumps=json_dumps)
     except KeyError:

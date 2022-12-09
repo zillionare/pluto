@@ -359,7 +359,7 @@ async def short_signal(
     Args:
         bars: 行情数据
         ex_info: 是否返回附加信息。这些信息可用以诊断
-        upper_limit: 上影相对于实体最高部分的长度比
+        upper_thresh: 上影相对于实体最高部分的长度比
 
     """
     info = {}

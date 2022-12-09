@@ -59,12 +59,7 @@ class SteepSlopesPool(ZarrStore):
     async def _do_pooling(self, secs: List[str], dt: datetime.date, n: int = 30):
         results = defaultdict(list)
 
-        min_ma_wave_len = {
-            10: 6,
-            20: 5,
-            30: 4,
-            60: 3
-        }
+        min_ma_wave_len = {10: 6, 20: 5, 30: 4, 60: 3}
 
         for i, code in enumerate(secs):
             if (i + 1) % 500 == 0:
@@ -87,14 +82,13 @@ class SteepSlopesPool(ZarrStore):
                     break
 
                 # 要求均线必须向上
-                score = convex_score(ma/ma[0], thresh = 1e-2)
+                score = convex_score(ma / ma[0], thresh=1e-2)
                 if score < 3e-1:
                     logger.debug(f"{code} convex not meet: {win} {score}")
                     continue
 
-
                 slopes[win] = (code, score)
-            if len(slopes) < 4: # 只有所有趋势都向上的，才计入
+            if len(slopes) < 4:  # 只有所有趋势都向上的，才计入
                 continue
 
             for win in (10, 20, 30, 60):
