@@ -50,10 +50,13 @@ async def three_white_soldiers(
         wave_len, wave_amp = last_wave(close)
         results.append((code, name, wave_len, wave_amp, wave_amp / wave_len))
 
-    return np.array(results, dtype = [
-        ("code", "U16"),
-        ("name", "U16"),
-        ("wave_len", "i4"),
-        ("wave_amp", "f4"),
-        ("daily_mean", "f4")
-    ])
+    return np.array(
+        results,
+        dtype=[
+            ("code", "U16"),
+            ("name", "U16"),
+            ("wave_len", "i4"),
+            ("wave_amp", "f4"),
+            ("daily_mean", "f4"),
+        ],
+    )

@@ -316,15 +316,15 @@ def convex_score(ts: NDArray, thresh: float = 2e-3) -> float:
         返回评估分数，如果大于0，表明为上升曲线，如果小于0，表明为下降曲线。0表明无法评估或者为横盘整理。
     """
     n = len(ts)
-    
+
     if n < 5:
         return 0
-    
+
     ts_hat = np.arange(n) * (ts[-1] - ts[0]) / (n - 1) + ts[0]
 
     # 如果点在连线下方，则曲线向上，分数为正
     interleave = ts_hat - ts
-        
+
     # 当前序列不能再分段处理了
     if np.all(interleave >= 0) or np.all(interleave <= 0):
         score = np.mean(ts_hat[1:-1] / ts[1:-1] - 1)
@@ -349,8 +349,6 @@ def convex_score(ts: NDArray, thresh: float = 2e-3) -> float:
         else:
             # 无法识别的情况
             return 0
-
-
 
 
 async def short_signal(

@@ -1,14 +1,15 @@
 import datetime
+import logging
 import os
 from typing import Any, List
 
+import arrow
 import zarr
 from omicron import tf
-import arrow
-import logging
 from omicron.models.security import Security
 
 logger = logging.getLogger(__name__)
+
 
 class ZarrStore(object):
     def __init__(self, path=None):
@@ -88,7 +89,7 @@ class ZarrStore(object):
         """
         dt = self._day_closed(dt or arrow.now().date())
 
-        if getattr(self, 'pooled', None) is not None:
+        if getattr(self, "pooled", None) is not None:
             if tf.date2int(dt) in self.pooled:
                 logger.info("%s already pooled", dt)
                 return
