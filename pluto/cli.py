@@ -156,23 +156,6 @@ def serve(port: int = 2712):
             time.sleep(1)
 
 
-def stop():
-    info = _read_proc_info()
-    if info is None:
-        print("未发现正在运行的pluto服务")
-        return
-
-    proc = info["proc"]
-    try:
-        os.kill(proc, signal.SIGKILL)
-    except ProcessLookupError:
-        sys.exit()
-    if not is_service_alive():
-        print("pluto已停止运行")
-    else:
-        print("停止pluto服务失败，请手工停止。")
-
-
 def pooling(pool: str, date: str = None):
     """启动`pool`（比如涨停池)的统计"""
     cmd = {"涨停": "blp", "触及涨停": "tblp", "上升均线": "ssp", "多头排列": "lpp"}.get(pool)
