@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "zillionare-pluto"
-version = "0.2.0"
+version = "0.3.0"
 homepage = "https://github.com/zillionare/pluto"
 description = "Skeleton project created by Python Project Wizard (ppw)."
 authors = ["aaron yang <aaron_yang@jieyu.ai>"]
@@ -57,6 +57,8 @@ zillionare-ths-boards = "^0.2"
 freezegun = "^1.2.2"
 pyemit = "^0.5.0"
 akshare = "^1.8.26"
+prettytable = "^3.5.0"
+orjson = "^3.8.3"
 
 [tool.poetry.extras]
 test = [

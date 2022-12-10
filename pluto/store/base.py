@@ -18,7 +18,6 @@ class ZarrStore(object):
             cfg = cfg4py.get_instance()
             pluto_path = os.path.expanduser(cfg.pluto.store)
         except Exception as e:
-            print(e)
             pluto_path = None
 
         self._store_path = path or os.environ.get("pluto_store_path") or pluto_path
