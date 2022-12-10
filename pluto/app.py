@@ -10,6 +10,7 @@ from sanic import Sanic
 from pluto.store.buy_limit_pool import BuyLimitPoolStore
 from pluto.store.steep_slopes_pool import SteepSlopesPool
 from pluto.store.touch_buy_limit_pool import TouchBuyLimitPoolStore
+from pluto.tasks.monitors import start_monitors
 from pluto.web.blueprints import bp
 
 application = Sanic("pluto")
@@ -36,7 +37,7 @@ def serve_static_files(app):
 
 
 async def init(app, loop):
-    cfg_folder = os.path.expanduser("~/zillionare/pluto/config")
+    cfg_folder = os.path.expanduser("~/zillionare/pluto")
     cfg4py.init(cfg_folder)
 
     await omicron.init()
@@ -49,6 +50,7 @@ async def init(app, loop):
     scheduler.add_job(tblp.pooling, "cron", hour=15, minute=8)
     scheduler.add_job(ssp.pooling, "cron", hour=15, minute=8)
 
+    start_monitors(scheduler)
     scheduler.start()
 
 
