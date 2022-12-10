@@ -30,9 +30,10 @@ class SteepSlopesPoolTest(unittest.IsolatedAsyncioTestCase):
     @freeze_time("2022-11-15 15:31:00")
     async def test_pooling(self):
         ssp = SteepSlopesPool()
-        codes = ["605001.XSHG"]
+        codes = ["002317.XSHE"]
         with mock.patch("omicron.models.security.Query.eval", return_value=codes):
             await ssp.pooling(dt=datetime.date(2022, 11, 15))
             actual = ssp.get(datetime.date(2022, 11, 15))
             self.assertEqual(4, len(actual))
-            self.assertEqual("605001.XSHG", actual[0]["code"])
+            self.assertEqual("002317.XSHE", actual[0]["code"])
+            self.assertAlmostEqual(0.0567, actual[0]["slp"], 3)

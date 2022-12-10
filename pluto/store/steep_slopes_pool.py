@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from omicron import tf
 from omicron.models.security import Security
 from omicron.models.stock import Stock
-from omicron.talib import moving_average
+from omicron.talib import moving_average, polyfit
 
 from pluto.core.metrics import convex_score, last_wave, parallel_score
 from pluto.store.base import ZarrStore
@@ -55,10 +55,8 @@ class SteepSlopesPool(ZarrStore):
 
         return result[result["win"] == win]
 
-    async def _do_pooling(self, secs: List[str], dt: datetime.date, n: int = 30):
+    async def _do_pooling(self, secs: List[str], dt: datetime.date, n: int = 100):
         results = defaultdict(list)
-
-        min_ma_wave_len = {10: 6, 20: 5, 30: 4, 60: 3}
 
         for i, code in enumerate(secs):
             if (i + 1) % 500 == 0:
@@ -69,29 +67,26 @@ class SteepSlopesPool(ZarrStore):
 
             close = bars["close"]
 
-            _, last_wave_amp = last_wave(close)
-            if last_wave_amp > 0.3:
+            wave_len, last_wave_amp = last_wave(close)
+            if (last_wave_amp > 0.5 and wave_len < 40) or (
+                last_wave_amp > 0.3 and wave_len < 10
+            ):
                 continue
 
-            slopes = {}
-            for win in (10, 20, 30, 60):
+            # 5日线需要向上
+            ma5 = moving_average(close, 5)[-10:]
+            if convex_score(ma5) < 0.2:
+                continue
+
+            wins = (10, 20, 30, 60)
+            for win in wins:
                 ma = moving_average(close, win)[-10:]
-                pmin = np.argmin(ma)
-                if 10 - pmin < min_ma_wave_len.get(win, 6):
-                    break
 
                 # 要求均线必须向上
-                score = convex_score(ma / ma[0], thresh=1e-2)
-                if score < 3e-1:
-                    logger.debug(f"{code} convex not meet: {win} {score}")
-                    continue
-
-                slopes[win] = (code, score)
-            if len(slopes) < 4:  # 只有所有趋势都向上的，才计入
-                continue
-
-            for win in (10, 20, 30, 60):
-                results[win].append(slopes.get(win))
+                ts = ma / ma[0]
+                err, (slp, _) = polyfit(ts, deg=1)
+                if err < np.std(ts) / 2:
+                    results[win].append((code, slp))
 
         # 对10, 20, 30 60均线，每种取前30支
         records = []
