@@ -205,7 +205,7 @@ class MomemtumStrategy:
         self.store.append(np.array([feature]), key)
         data_size = len(self.store.get(key))
 
-        meta_key = f"train/short/meta"
+        meta_key = "train/short/meta"
         self.store.append([f"{code}:{tf.time2int(frame)}"], meta_key)
         meta_size = len(self.store.get(meta_key))
 

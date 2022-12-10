@@ -13,14 +13,14 @@
 
 Module/Library/function/icons used in this project:
 ------------------------------------------------------
- 
+
  * cdjns of font-awesome https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css
  * jQuery v3.3.1 | (c) JS Foundation and other contributors | jquery.org/license
  * HTML-5
  * Custom css
  * Custom javascript
  * & some icon.I don't know if someone have enough time to claim that's ownership [XD] .
- 
+
 
   Important information of this project:
 -------------------------------------------
@@ -34,12 +34,12 @@ Module/Library/function/icons used in this project:
 
  Dowload font-awesome:
  ---------------------
- 
+
  * Download font-awesome's latest librabry https://fontawesome.com/
  * Replace it into /dist as /dist/font-awesome
  * Remove the comment of font-awesome link from index.html
  * Also you can delete the cdnjs linkup from index.html
- 
+
  Why .collapse:
 --------------------
 

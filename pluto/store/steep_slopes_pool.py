@@ -10,9 +10,8 @@ from omicron import tf
 from omicron.models.security import Security
 from omicron.models.stock import Stock
 from omicron.talib import moving_average
-from pluto.core.metrics import last_wave
 
-from pluto.core.metrics import convex_score, parallel_score
+from pluto.core.metrics import convex_score, last_wave, parallel_score
 from pluto.store.base import ZarrStore
 
 logger = logging.getLogger(__name__)
@@ -32,7 +31,7 @@ class SteepSlopesPool(ZarrStore):
         date = tf.date2int(date)
         super().save(records, key=f"{date}")
 
-        pooled = self.data.attrs.get(f"pooled", [])
+        pooled = self.data.attrs.get("pooled", [])
         pooled.append(date)
         self.data.attrs["pooled"] = pooled
 

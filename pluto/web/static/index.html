@@ -234,8 +234,17 @@
             </div>
           </div>
         </div>
+
+        <!-- 自定义对话框 -->
+        <my-dialog logo_text="Pluto客户端" title_text="对话框标题" header_color="black" bgc_color="white" width="800px" height="600px">
+          <div slot="dia_main" style="display: flex;justify-content: center;align-items: center;height: 100%;width:100%">
+            <span>这是自定义对话框的插槽</span>
+          </div>
+        </my-dialog>
+        <!-- 自定义对话框 -->
+        
         <el-dialog
-          id="my_dialog"
+          id="dialog_ele"
           :modal-append-to-body="false"
           :visible.sync="visible1"
           width="800px"
@@ -251,9 +260,7 @@
             <el-button @click="visible1 = false">取 消</el-button>
             <el-button type="primary" @click="visible1 = false">确 定</el-button>
           </div>
-          
         </el-dialog>
-
       </div>
     </div>
   </div>
@@ -294,17 +301,15 @@
       ajax: './data/buylimit_stats.txt',
     });
     $('#stats').on('click','tr',function(){
-        // console.log(this)
         let data = table.row(this).data()
-        console.log('涨停池页面',data)
-        vm_data.visible1 = true
-        vm_data.stock_name = data[1]+" "+data[0]
+        // console.log('涨停池页面',data)
+        open_my_dialog()
     })
     show_query_filters()
     $('#buylimit-filter').click(function(e){            
     })
   }
-
+  
   function show_command_page(){
     function run_command() {
       console.info($("#command").val())
@@ -345,19 +350,178 @@
       $('#stats').on('click','tr',function(){
         // console.log(this)
         let data2 = table2.row(this).data()
-        console.log('上升均线页面',data2)
-        vm_data.visible1 = true
-        vm_data.stock_name =data2[1]+" "+data2[0]
+        // console.log('上升均线页面',data2)
+        let stock = data2[1]+" "+data2[0]
+        open_el_dialog(stock)
       })
     })
   }
-  
-  function get_k_map_data(){
-    $.ajax({
-      url:''
-    })
+  // 打开自定义对话框
+  function open_my_dialog(){
+   let my_dialog = document.getElementsByTagName('my-dialog')[0]
+   my_dialog.setAttribute('is_show','true')
+  }
+  // 关闭自定义对话框
+  function close_my_dialog(){
+   let my_dialog = document.getElementsByTagName('my-dialog')[0]
+   my_dialog.setAttribute('is_show','false')
+  }
+  // 打开el-dialog
+  function open_el_dialog(stock){
+    vm_data.visible1 = true
+    vm_data.stock_name = stock
+  }
+  // 关闭el-dialog
+  function close_el_dialog(){
+    vm_data.visible1 = false
   }
 
+  function update_my_dialog_element(ele){
+    if(ele.shadowRoot){
+      let my_dialog_real = ele.shadowRoot.childNodes[0]
+      console.log(my_dialog_real.style)
+      if(ele.getAttribute("is_show")=='true'){
+        my_dialog_real.style.opacity = 1
+        console.log(my_dialog_real.style.opacity)
+      }else{
+        my_dialog_real.style.opacity = 0
+        console.log(my_dialog_real.style.opacity)
+      }
+    }
+    ele.hidden = ele.getAttribute("is_show")=='true'? false:true
+  }
+
+  class mydialog extends HTMLElement {
+    static get observedAttributes() {return ['is_show']; }
+    constructor() {
+      // 调用 super 方法
+      super();
+    }
+    connectedCallback() {
+      this.setAttribute('is_show','false')
+      // this.hidden = this.getAttribute("is_show")? (this.getAttribute("is_show")=='true'? false:true):true
+      const shadow = this.attachShadow({mode: 'open'})
+  
+      let dia = document.createElement('div')
+      dia.setAttribute('class','dia')
+
+      let dia_mask = document.createElement('div')
+      dia_mask.setAttribute('class','dia_mask')
+        
+      let dia_header = document.createElement('div')
+      dia_header.setAttribute('class','dia_header')
+
+      let header_span1 = document.createElement('span')
+      header_span1.setAttribute('class','logo_text')
+     
+      let header_span2 = document.createElement('span')
+      header_span2.setAttribute('class','title_text')
+     
+      let header_span3 = document.createElement('span')
+      header_span3.setAttribute('class','el-icon-circle-close')
+      header_span3.textContent = 'X'
+      
+      let dia_body = document.createElement('div')
+      dia_body.setAttribute('class','dia_body')
+
+      let slot = document.createElement('slot')
+      slot.setAttribute('name','dia_main')
+
+      let dia_style = document.createElement('style')
+      dia_style.textContent = `
+      .dia{
+        display:flex;
+        flex-direction:column;
+        z-index: 2015;
+        position:fixed;
+        top:50%;
+        left:50%;
+        transform:translate(-50%,-50%);
+        width:${this.getAttribute('width')? this.getAttribute('width'):'800px'};
+        height:${this.getAttribute('height')? this.getAttribute('height'):'600px'};
+        background-color:${this.getAttribute('bgc_color')? this.getAttribute('bgc_color'):'white'};
+        opacity:0;
+        transition:all 2s
+      }
+      .dia_header{
+        height:50px;
+        padding:0 20px;
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        font-size:18px;
+        background-color:${this.getAttribute('header_color')? this.getAttribute('header_color'):'red'}
+      }
+      .logo_text{
+        color: gold;
+      }
+      .title_text{
+        color: white;
+      }
+      .dia_body{
+        flex:1
+      }
+      .el-icon-circle-close{
+        color:white;
+        font-weight:600;
+      }
+      .el-icon-circle-close:hover{
+        cursor:pointer;
+      }
+      .dia_mask{
+        z-index:2014;
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        opacity: .5;
+        background: #000;
+      }
+      slot{
+        height:100%;
+        width:100%;
+        display:block;
+      }
+      `
+      if(this.hasAttribute('logo_text')){
+        header_span1.textContent  = this.getAttribute('logo_text')
+      }else{
+        header_span1.textContent = '自定义文字'
+      }
+      if(this.hasAttribute('title_text')){
+        header_span2.textContent = this.getAttribute('title_text')
+      }else{
+        header_span2.textContent  = '自定义标题'
+      }
+      header_span3.addEventListener('click',()=>{
+        close_my_dialog()
+      })
+      // dia.style.backgroundColor = this.getAttribute('bgc_color')
+      // dia_header.style.backgroundColor = this.getAttribute('header_color')
+      console.log('自定义组件已经插入DOM树中')
+      // console.log(this.getAttribute('header_color'))
+      // console.log(this.getAttribute('bgc_color'))
+      // console.log(this.getAttribute('title_text'))
+      // console.log(this.getAttribute('logo_text'))
+      // console.log(this.getAttribute('is_show'))
+      shadow.appendChild(dia)
+      shadow.appendChild(dia_mask)
+      shadow.appendChild(dia_style)
+      dia.appendChild(dia_header)
+      dia.appendChild(dia_body)
+      dia_header.appendChild(header_span1)
+      dia_header.appendChild(header_span2)
+      dia_header.appendChild(header_span3)
+      dia_body.appendChild(slot)
+    }
+    
+    attributeChangedCallback(){
+      console.log('属性更改')
+      update_my_dialog_element(this) 
+    }
+  }
+  customElements.define('my-dialog',mydialog)
   let vm_data = {
     defalut_page_num:'0',
     page_num:'0',

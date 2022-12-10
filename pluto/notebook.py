@@ -2,19 +2,21 @@
 
 # 此文件中的代码是实验性的，主要目的是以交互式方式在vscode中运行。
 
-import cfg4py
-import omicron
+import asyncio
 import os
+
+import cfg4py
+import numpy as np
+import omicron
 import pandas as pd
+from coretypes import FrameType
 from omicron.models.security import Security
 from omicron.models.stock import Stock
-from pluto.core import is_main_board
 from omicron.plotting.candlestick import Candlestick
-from coretypes import FrameType
-import asyncio
 from omicron.talib import moving_average
+
+from pluto.core import is_main_board
 from pluto.core.metrics import convex_score
-import numpy as np
 
 codes = []
 

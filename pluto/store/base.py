@@ -1,11 +1,10 @@
 import datetime
+import logging
 import os
 from typing import Any, List
 
 import zarr
 from omicron import tf
-import arrow
-import logging
 from omicron.models.security import Security
 
 logger = logging.getLogger(__name__)
@@ -13,12 +12,14 @@ logger = logging.getLogger(__name__)
 
 class ZarrStore(object):
     def __init__(self, path=None):
-        cur_dir = os.path.dirname(__file__)
-        self._store_path = (
-            path
-            or os.environ.get("pluto_store_path")
-            or os.path.join(cur_dir, "pluto.zarr")
-        )
+        try:
+            cfg = cfg4py.get_instance()
+            pluto_path = os.path.expanduser(cfg.pluto.store)
+        except Exception as e:
+            print(e)
+            pluto_path = None
+
+        self._store_path = path or os.environ.get("pluto_store_path") or pluto_path
 
         self._store = zarr.open(self._store_path, mode="a")
 
