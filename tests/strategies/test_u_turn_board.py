@@ -93,9 +93,17 @@ class TurnaroundStrategyTest(unittest.IsolatedAsyncioTestCase):
     async def test_backtest(self):
         start = datetime.date(2022, 10, 26)
         end = datetime.date(2022, 10, 26)
-        codes = ["002793.XSHE", "003020.XSHE","301075.XSHE", "301089.XSHE", "000001.XSHE"]
+        codes = [
+            "002793.XSHE",
+            "003020.XSHE",
+            "301075.XSHE",
+            "301089.XSHE",
+            "000001.XSHE",
+        ]
         with mock.patch("omicron.models.security.Query.eval", return_value=codes):
-            actual = (await TurnaroundStrategy().backtest(start, end, 8, 1, None)).values
+            actual = (
+                await TurnaroundStrategy().backtest(start, end, 8, 1, None)
+            ).values
             exp = np.array(
                 [
                     [
