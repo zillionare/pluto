@@ -93,42 +93,44 @@ class TurnaroundStrategyTest(unittest.IsolatedAsyncioTestCase):
     async def test_backtest(self):
         start = datetime.date(2022, 10, 26)
         end = datetime.date(2022, 10, 26)
-        actual = (await TurnaroundStrategy().backtest(start, end, 8, 1, None)).values
-        exp = np.array(
-            [
+        codes = ["002793.XSHE", "003020.XSHE","301075.XSHE", "301089.XSHE", "000001.XSHE"]
+        with mock.patch("omicron.models.security.Query.eval", return_value=codes):
+            actual = (await TurnaroundStrategy().backtest(start, end, 8, 1, None)).values
+            exp = np.array(
                 [
-                    datetime.date(2022, 10, 26),
-                    "罗欣药业",
-                    "002793.XSHE",
-                    0.37641418166458607,
-                    1,
-                    list([("881140", "化学制药"), ("884144", "化学制剂")]),
+                    [
+                        datetime.date(2022, 10, 26),
+                        "罗欣药业",
+                        "002793.XSHE",
+                        0.37641418166458607,
+                        1,
+                        list([("881140", "化学制药"), ("884144", "化学制剂")]),
+                    ],
+                    [
+                        datetime.date(2022, 10, 26),
+                        "立方制药",
+                        "003020.XSHE",
+                        0.7558655925095081,
+                        1,
+                        list([("881140", "化学制药"), ("884144", "化学制剂")]),
+                    ],
+                    [
+                        datetime.date(2022, 10, 26),
+                        "多瑞医药",
+                        "301075.XSHE",
+                        0.24968564976006746,
+                        1,
+                        list([("881140", "化学制药"), ("884144", "化学制剂")]),
+                    ],
+                    [
+                        datetime.date(2022, 10, 26),
+                        "拓新药业",
+                        "301089.XSHE",
+                        -2.1184219047427177,
+                        1,
+                        list([("881140", "化学制药"), ("884143", "原料药")]),
+                    ],
                 ],
-                [
-                    datetime.date(2022, 10, 26),
-                    "立方制药",
-                    "003020.XSHE",
-                    0.7558655925095081,
-                    1,
-                    list([("881140", "化学制药"), ("884144", "化学制剂")]),
-                ],
-                [
-                    datetime.date(2022, 10, 26),
-                    "多瑞医药",
-                    "301075.XSHE",
-                    0.24968564976006746,
-                    1,
-                    list([("881140", "化学制药"), ("884144", "化学制剂")]),
-                ],
-                [
-                    datetime.date(2022, 10, 26),
-                    "拓新药业",
-                    "301089.XSHE",
-                    -2.1184219047427177,
-                    1,
-                    list([("881140", "化学制药"), ("884143", "原料药")]),
-                ],
-            ],
-            dtype=object,
-        )
-        np.testing.assert_array_equal(actual, exp)
+                dtype=object,
+            )
+            np.testing.assert_array_equal(actual, exp)
