@@ -1,5 +1,6 @@
 import logging
 import os
+from collections import defaultdict
 from typing import List
 
 import numpy as np
@@ -12,7 +13,6 @@ from omicron.notify.mail import mail_notify
 from omicron.talib import moving_average, polyfit
 from watchdog.events import FileModifiedEvent, FileSystemEventHandler
 from watchdog.observers import Observer
-from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def schedule_watch_ma(scheduler: AsyncIOScheduler):
     scheduler.add_job(
         watch_ma,
         "cron",
-        args=(tasks, ),
+        args=(tasks,),
         name=f"watch_ma:{code}:{win}:{ft.value}",
         hour=14,
         minute=30,
@@ -101,6 +101,6 @@ async def watch_ma(watch_list: List):
             msg = f"{name} {today} 触及{win}{ft.value}均线"
             logger.info(msg)
             report.append(msg)
-    
+
     if len(report):
-        mail_notify("触及均线监控", body = "\n".join(report))
+        mail_notify("触及均线监控", body="\n".join(report))
