@@ -32,7 +32,7 @@ import numpy as np
 from coretypes import FrameType
 from numpy.typing import NDArray
 from omicron import tf
-from omicron.extensions import find_runs
+from omicron.extensions import find_runs, price_equal
 from omicron.models.security import Security
 from omicron.models.stock import Stock
 
@@ -66,15 +66,20 @@ class BuyLimitPoolStore(ZarrStore):
         frame = tf.date2int(dt)
         records = []
         for i, sec in enumerate(secs):
-            if i + 1 % 500 == 0:
+            if (i + 1) % 500 == 0:
                 logger.info("progress: %s of %s", i + 1, len(secs))
 
-            flags = await Stock.trade_price_limit_flags(sec, dt, dt)
-            if len(flags) == 0 or not flags[0][0]:
-                continue
+            prices = await Stock.get_trade_price_limits(sec, dt, dt)
+            if len(prices) == 0:
+                return None
 
-            records.append((sec, frame))
+            high_limit = prices["high_limit"][0].item()
+            bars = await Stock.get_bars(sec, 1, FrameType.DAY, end=dt)
+            if price_equal(high_limit, bars['close'][-1]):
+                records.append((sec, frame))
+                
         self.save(np.array(records, dtype=self.dtype), frame)
+        logger.info("done with buylimit pooling, %s pooled", len(records))
 
     def count_continous(self, records, frames: List[int]) -> int:
         """找出最长的连续板个数"""
