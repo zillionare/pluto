@@ -71,10 +71,13 @@ class BuyLimitPoolStore(ZarrStore):
 
             prices = await Stock.get_trade_price_limits(sec, dt, dt)
             if len(prices) == 0:
-                return None
+                continue
 
             high_limit = prices["high_limit"][0].item()
             bars = await Stock.get_bars(sec, 1, FrameType.DAY, end=dt)
+            if len(bars) == 0:
+                continue
+            
             if price_equal(high_limit, bars['close'][-1]):
                 records.append((sec, frame))
                 

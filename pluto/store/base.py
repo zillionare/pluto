@@ -105,6 +105,6 @@ class ZarrStore(object):
             .eval()
         )
 
-        logger.info("building %s pool for %s...", self.__class__.__name__.lower(), dt)
+        logger.info("building %s pool for %s(%s)...", self.__class__.__name__.lower(), dt, len(secs))
         await self._do_pooling(secs, dt, **kwargs)
         logger.info("done with pooling")
