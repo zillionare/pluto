@@ -96,7 +96,6 @@ class ZarrStore(object):
                 logger.info("%s already pooled", dt)
                 return
 
-        logger.info("building %s pool for %s...", self.__class__.__name__.lower(), dt)
         secs = (
             await Security.select()
             .types(["stock"])
@@ -106,4 +105,6 @@ class ZarrStore(object):
             .eval()
         )
 
+        logger.info("building %s pool for %s...", self.__class__.__name__.lower(), dt)
         await self._do_pooling(secs, dt, **kwargs)
+        logger.info("done with pooling")
