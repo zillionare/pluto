@@ -319,6 +319,8 @@ def convex_score(ts: NDArray, thresh: float = 1.5e-3) -> float:
     Returns:
         返回评估分数，如果大于0，表明为上升曲线，如果小于0，表明为下降曲线。0表明无法评估或者为横盘整理。
     """
+    assert np.all(~np.isnan(ts)), "传入ts含有np.nan值！"
+
     n = len(ts)
 
     if n < 5:
@@ -852,3 +854,30 @@ def hrsi_upline_confirm(
                 prev_mean_rsi = np.mean([upper_rsi[-2], upper_rsi[-3]])
                 if upper_rsi[-1] >= prev_mean_rsi:
                     return dist
+
+
+# from typing import Tuple
+# import cfg4py
+# import numpy as np
+# import omicron
+# import pandas as pd
+# import talib as ta
+# from coretypes import Frame, FrameType, bars_dtype
+# from numpy.random import choice
+# from omicron import tf
+# from omicron.models.stock import Stock
+# from omicron.talib import peaks_and_valleys
+# from IPython.display import display
+# from boards.board import IndustryBoard
+# pd.options.display.max_rows = None
+# pd.options.display.max_columns = None
+# IndustryBoard.init()
+# ib = IndustryBoard()
+
+# cfg = cfg4py.init("/home/belva/zillionare/config")
+# await omicron.init()
+
+
+# code = '000929.XSHE'
+# end=tf.combine_time(datetime.date(2022, 12, 13), 15)
+# await plot_evaluate(code, end)

@@ -17,7 +17,7 @@ class ZarrStore(object):
         try:
             cfg = cfg4py.get_instance()
             pluto_path = os.path.expanduser(cfg.pluto.store)
-        except Exception as e:
+        except Exception:
             pluto_path = None
 
         self._store_path = path or os.environ.get("pluto_store_path") or pluto_path
@@ -105,6 +105,11 @@ class ZarrStore(object):
             .eval()
         )
 
-        logger.info("building %s pool for %s(%s)...", self.__class__.__name__.lower(), dt, len(secs))
+        logger.info(
+            "building %s pool for %s(%s)...",
+            self.__class__.__name__.lower(),
+            dt,
+            len(secs),
+        )
         await self._do_pooling(secs, dt, **kwargs)
         logger.info("done with pooling")

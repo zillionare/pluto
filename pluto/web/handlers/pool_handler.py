@@ -44,16 +44,16 @@ async def pooling(request):
 async def buylimit_find_all(request):
     params = request.json
 
-    start = arrow.get(params.get("start")).date()
-    end = arrow.get(params.get("end")).date()
+    _ = arrow.get(params.get("start")).date()
+    _ = arrow.get(params.get("end")).date()
 
-    total_min = params.get("total_min", 1)
-    total_max = params.get("total_max", 10)
+    _ = params.get("total_min", 1)
+    _ = params.get("total_max", 10)
 
-    continuous_min = params.get("continuous_min", 1)
-    continuous_max = params.get("continuous_max", 3)
+    _ = params.get("continuous_min", 1)
+    _ = params.get("continuous_max", 3)
 
-    till_now = params.get("till_now", 10)
+    _ = params.get("till_now", 10)
 
 
 @pools.route("/steep_slopes_pool")

@@ -65,7 +65,7 @@ def saucer_support(bars: BarsArray, win: int) -> float:
     close = bars["close"]
     low = bars["low"]
 
-    pct = close[1:] / close[:-1] - 1
+    _ = close[1:] / close[:-1] - 1
 
     ma = moving_average(close, win)[-7:]
     ma_hat = np.arange(7) * (ma[-1] - ma[0]) / 6 + ma[0]

@@ -77,10 +77,10 @@ class BuyLimitPoolStore(ZarrStore):
             bars = await Stock.get_bars(sec, 1, FrameType.DAY, end=dt)
             if len(bars) == 0:
                 continue
-            
-            if price_equal(high_limit, bars['close'][-1]):
+
+            if price_equal(high_limit, bars["close"][-1]):
                 records.append((sec, frame))
-                
+
         self.save(np.array(records, dtype=self.dtype), frame)
         logger.info("done with buylimit pooling, %s pooled", len(records))
 
