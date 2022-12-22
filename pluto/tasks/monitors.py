@@ -62,14 +62,15 @@ def schedule_watch_ma(scheduler: AsyncIOScheduler):
             except Exception as e:
                 logger.exception(e)
 
-    scheduler.add_job(
-        watch_ma,
-        "cron",
-        args=(tasks,),
-        name=f"watch_ma:{code}:{win}:{ft.value}",
-        hour=14,
-        minute=30,
-    )
+    if len(tasks):
+        scheduler.add_job(
+            watch_ma,
+            "cron",
+            args=(tasks,),
+            name=f"watch_ma:{win}:{ft.value}",
+            hour=14,
+            minute=30,
+        )
 
 
 async def watch_ma(watch_list: List):
