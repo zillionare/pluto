@@ -878,6 +878,6 @@ def hrsi_upline_confirm(
 # await omicron.init()
 
 
-# code = '000929.XSHE'
-# end=tf.combine_time(datetime.date(2022, 12, 13), 15)
+# code = '002234.XSHE'
+# end=tf.combine_time(datetime.date(2022, 12, 21), 14, 30)
 # await plot_evaluate(code, end)

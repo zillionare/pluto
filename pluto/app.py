@@ -46,7 +46,7 @@ async def init(app, loop):
     tblp = TouchBuyLimitPoolStore()
     ssp = SteepSlopesPool()
 
-    scheduler = AsyncIOScheduler(event_loop=loop)
+    scheduler = AsyncIOScheduler(event_loop=loop, timezone="Asia/Shanghai")
     scheduler.add_job(blp.pooling, "cron", hour=15, minute=5)
     scheduler.add_job(tblp.pooling, "cron", hour=15, minute=8)
     scheduler.add_job(ssp.pooling, "cron", hour=15, minute=8)
@@ -65,7 +65,7 @@ async def init(app, loop):
         "cron",
         hour=9,
         minute="31-59",
-        second="*/10",  # 每10秒执行一次
+        second="*/10",
         name="9：30~9：59点检测并卖出",
     )
 
@@ -73,7 +73,7 @@ async def init(app, loop):
         wr.market_sell,
         "cron",
         hour=10,
-        second="*/10",  # 每10秒执行一次
+        second="*/10",
         name="10点检测并卖出",
     )
 
@@ -82,7 +82,7 @@ async def init(app, loop):
         "cron",
         hour=11,
         minute="0-30",
-        second="*/10",  # 每10秒执行一次
+        second="*/10",
         name="11：00~11：30点检测并卖出",
     )
 
@@ -90,7 +90,7 @@ async def init(app, loop):
         wr.market_sell,
         "cron",
         hour=13,
-        second="*/10",  # 每10秒执行一次
+        second="*/10",
         name="13:00~14:00检测并卖出",
     )
 
@@ -99,7 +99,7 @@ async def init(app, loop):
         "cron",
         hour=14,
         minute="0-57",
-        second="*/10",  # 每10秒执行一次
+        second="*/10",
         name="14:00~14:57检测并卖出",
     )
 
