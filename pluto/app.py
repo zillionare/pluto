@@ -39,69 +39,71 @@ def serve_static_files(app):
 
 async def init(app, loop):
     cfg_folder = os.path.expanduser("~/zillionare/pluto")
-    cfg4py.init(cfg_folder)
+    cfg = cfg4py.init(cfg_folder)
 
     await omicron.init()
     blp = BuyLimitPoolStore()
     tblp = TouchBuyLimitPoolStore()
     ssp = SteepSlopesPool()
 
-    scheduler = AsyncIOScheduler(event_loop=loop, timezone="Asia/Shanghai")
-    scheduler.add_job(blp.pooling, "cron", hour=15, minute=5)
-    scheduler.add_job(tblp.pooling, "cron", hour=15, minute=8)
-    scheduler.add_job(ssp.pooling, "cron", hour=15, minute=8)
+    scheduler = AsyncIOScheduler(event_loop=loop)
+    if cfg.tasks.pooling:
+        scheduler.add_job(blp.pooling, "cron", hour=15, minute=5)
+        scheduler.add_job(tblp.pooling, "cron", hour=15, minute=8)
+        scheduler.add_job(ssp.pooling, "cron", hour=15, minute=8)
 
-    scheduler.add_job(
-        wr.market_buy,
-        "cron",
-        hour=14,
-        minute=0,
-        second=0,
-        name="14:00筛选并买入",
-    )
+    if cfg.tasks.wr:
+        scheduler.add_job(
+            wr.market_buy,
+            "cron",
+            hour=14,
+            minute=0,
+            second=0,
+            name="14:00筛选并买入",
+        )
 
-    scheduler.add_job(
-        wr.market_sell,
-        "cron",
-        hour=9,
-        minute="31-59",
-        second="*/10",
-        name="9：30~9：59点检测并卖出",
-    )
+        scheduler.add_job(
+            wr.market_sell,
+            "cron",
+            hour=9,
+            minute="31-59",
+            second="*/10",  # 每10秒执行一次
+            name="9：30~9：59点检测并卖出",
+        )
 
-    scheduler.add_job(
-        wr.market_sell,
-        "cron",
-        hour=10,
-        second="*/10",
-        name="10点检测并卖出",
-    )
+        scheduler.add_job(
+            wr.market_sell,
+            "cron",
+            hour=10,
+            second="*/10",  # 每10秒执行一次
+            name="10点检测并卖出",
+        )
 
-    scheduler.add_job(
-        wr.market_sell,
-        "cron",
-        hour=11,
-        minute="0-30",
-        second="*/10",
-        name="11：00~11：30点检测并卖出",
-    )
+        scheduler.add_job(
+            wr.market_sell,
+            "cron",
+            hour=11,
+            minute="0-30",
+            second="*/10",  # 每10秒执行一次
+            name="11：00~11：30点检测并卖出",
+        )
 
-    scheduler.add_job(
-        wr.market_sell,
-        "cron",
-        hour=13,
-        second="*/10",
-        name="13:00~14:00检测并卖出",
-    )
+        scheduler.add_job(
+            wr.market_sell,
+            "cron",
+            hour=13,
+            second="*/10",  # 每10秒执行一次
+            name="13:00~14:00检测并卖出",
+        )
 
-    scheduler.add_job(
-        wr.market_sell,
-        "cron",
-        hour=14,
-        minute="0-57",
-        second="*/10",
-        name="14:00~14:57检测并卖出",
-    )
+        scheduler.add_job(
+            wr.market_sell,
+            "cron",
+            hour=14,
+            minute="0-57",
+            second="*/10",  # 每10秒执行一次
+            name="14:00~14:57检测并卖出",
+        )
 
     start_monitors(scheduler)
     scheduler.start()

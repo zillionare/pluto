@@ -25,7 +25,7 @@ from pluto.store.touch_buy_limit_pool import TouchBuyLimitPoolStore
 
 logger = logging.getLogger(__name__)
 
-cfg4py.init(os.path.expanduser("~/zillionare/pluto/config"))
+cfg4py.init(os.path.expanduser("~/zillionare/pluto"))
 
 pools = {
     "涨停": BuyLimitPoolStore(),

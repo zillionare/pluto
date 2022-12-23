@@ -1,7 +1,7 @@
 [tool]
 [tool.poetry]
 name = "zillionare-pluto"
-version = "0.3.3"
+version = "0.3.4"
 homepage = "https://github.com/zillionare/pluto"
 description = "Skeleton project created by Python Project Wizard (ppw)."
 authors = ["aaron yang <aaron_yang@jieyu.ai>"]
