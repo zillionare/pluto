@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import talib as ta
 from coretypes import FrameType
-from IPython.display import display
 from omicron import tf
 from omicron.extensions import price_equal
 from omicron.models.board import Board, BoardType
@@ -16,8 +15,6 @@ from omicron.models.stock import Stock
 from omicron.notify import dingtalk
 from traderclient import TraderClient
 
-pd.options.display.max_rows = None
-pd.options.display.max_columns = None
 Board.init("192.168.100.101")
 
 cfg = cfg4py.init("/home/belva/zillionare/config")
@@ -180,8 +177,7 @@ async def scan_buy():
             result_pd = pd.concat([result_pd, code_info])
             # plot = await plot_wr(code)
 
-    log.info("筛选出来可买股票：")
-    display(result_pd)
+    log.info(f"筛选出来可买股票：{result_pd['名称'].values}")
     return result_pd
 
 
@@ -244,9 +240,7 @@ async def market_buy():
             }
 
             await dingtalk.ding(msg)
-            buy_info = pd.DataFrame.from_dict(buy, orient="index").T
-            log.info("买入股票详情：")
-            display(buy_info)
+            log.info(f"买入股票详情：{buy}")
             log.info("------------------------------------------------------")
 
     else:
@@ -323,6 +317,4 @@ async def market_sell(rsik_limit: float = -0.03):
 
             await dingtalk.ding(msg)
             log.info(f"卖出股票详情：{sell}")
-            log.info("卖出后持仓: ")
-            display(pd.DataFrame(client.positions()))
     return
