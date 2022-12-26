@@ -220,13 +220,21 @@ async def market_buy():
                     code_xq = "SH" + str(code[:6])
                     user.adjust_weight(
                         code_xq,
-                        (ave_holds * 100 * last_price) // client.available_money * 100,
+                        int(
+                            (ave_holds * 100 * last_price)
+                            / client.available_money
+                            * 100
+                        ),
                     )
                 else:
                     code_xq = "SZ" + str(code[:6])
                     user.adjust_weight(
                         code_xq,
-                        (ave_holds * 100 * last_price) // client.available_money * 100,
+                        int(
+                            (ave_holds * 100 * last_price)
+                            / client.available_money
+                            * 100
+                        ),
                     )
             except Exception as e:
                 print(e)
