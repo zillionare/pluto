@@ -14,10 +14,11 @@ from omicron.models.security import Security
 from omicron.models.stock import Stock
 from omicron.notify import dingtalk
 from traderclient import TraderClient
+import os
 
 Board.init("192.168.100.101")
 
-cfg = cfg4py.init("/home/belva/zillionare/config")
+cfg = cfg4py.init(os.expanduser("~/zillionare/config"))
 
 
 async def W_R(bars, up_thresh=90):

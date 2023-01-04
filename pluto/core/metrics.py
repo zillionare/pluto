@@ -859,6 +859,7 @@ def hrsi_upline_confirm(
 # from typing import Tuple
 # import cfg4py
 # import numpy as np
+# import os
 # import omicron
 # import pandas as pd
 # import talib as ta
@@ -874,7 +875,7 @@ def hrsi_upline_confirm(
 # IndustryBoard.init()
 # ib = IndustryBoard()
 
-# cfg = cfg4py.init("/home/belva/zillionare/config")
+# cfg = cfg4py.init(os.expanduser("~/zillionare/config"))
 # await omicron.init()
 
 

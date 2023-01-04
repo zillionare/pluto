@@ -59,6 +59,7 @@ pyemit = "^0.5.0"
 akshare = "^1.8.26"
 prettytable = "^3.5.0"
 orjson = "^3.8.3"
+easytrader = "^0.23.0"
 
 [tool.poetry.extras]
 test = [
@@ -84,6 +85,12 @@ doc = [
 
 [tool.poetry.scripts]
 pluto = 'pluto.cli:main'
+
+[[tool.poetry.source]]
+name = "ali"
+url = "https://mirrors.aliyun.com/pypi/simple"
+default = true
+secondary = false
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
