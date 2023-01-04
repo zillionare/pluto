@@ -25,70 +25,63 @@ async def W_R(bars, up_thresh=90):
     high = bars["high"].astype(np.float64)
     low = bars["low"].astype(np.float64)
     wr10 = 100 + (ta.WILLR(high, low, close, 7))
+    rsi = ta.RSI(close, 6)
     index = np.arange(len(close))
 
     # 买点---------------------------------------------------------
-    # 下降通过中，前面出现连续跌的情况
+    # 下降通过中，前面出现连续跌的情况， 去掉筛选之后下一个继续跌的
     new_buys = []
     after_returns = []
     for b in index:
-        before_buy = wr10[b - 4 : b]
-        if (
-            np.all(before_buy <= 35) and 35 < wr10[b]
-        ):  # and np.count_nonzero(before_buy<=down_thresh)>0
-            new_buys.append(b)
+        if b < index[-1]:
+            before_buy = wr10[b - 4 : b]
+            if (
+                np.all(before_buy <= 35)
+                and (35 < wr10[b])
+                and (close[b + 1] >= close[b])
+            ):
+                new_buys.append(b)
 
-            # 计算其后续收益
-            if b + 8 < len(close) - 1:
-                after_return = close[b + 8] / close[b] - 1
-            else:
-                after_return = close[-1] / close[b] - 1
-            after_returns.append(after_return)
+                # 计算其后续收益
+                if b + 9 <= len(close) - 1:
+                    after_return = close[b + 9] / close[b + 1] - 1
+                else:
+                    after_return = close[-1] / close[b + 1] - 1
+                after_returns.append(after_return)
 
-    # 卖点，实时卖出，不用high替换close
-    new_sells = []
-    for b in index:
-        before_sell = wr10[b - 4 : b]
-        if (
-            np.all(before_sell >= 80) and wr10[b] < 80
-        ):  # and np.count_nonzero(before_buy<=down_thresh)>0
-            new_sells.append(b)
+    # 卖点------------------------------------------------------
+    sell_flag = False
+    before_sell = wr10[-5:-1]
+    if (np.all(before_sell >= 80) and wr10[b] < 80) or (
+        (wr10[-1] >= up_thresh) and (rsi[-1] >= 80)
+    ):
+        sell_flag = True
 
-    # 高RSI卖点
-    isell_hrsi = []
-    ihigh_wr10 = np.where(wr10 >= up_thresh)[0]
-    rsi = ta.RSI(close, 6)
-    ih_rsi = np.where(rsi >= 80)[0]
-    isell_hrsi = np.intersect1d(ihigh_wr10, ih_rsi)
-    iall_sells = []
-    iall_sells = np.where(wr10 >= 95)[0]
-
-    iaall_sells = sorted(new_sells + list(isell_hrsi) + list(iall_sells))
-    iaall_sells = np.array(iaall_sells)
-
-    return new_buys, after_returns, iaall_sells, wr10
+    return new_buys, after_returns, sell_flag, wr10
 
 
 async def buy_wr(code: str, up_thresh: int = 90):
-    bars = await Stock.get_bars(code, 120, FrameType.MIN30)
+    now = datetime.datetime.now()
+    end = tf.floor(now, FrameType.MIN30)
+    # 除去11：25， 14：50买入的情况，这两个时间按照实时价格计算
+    if (now.hour == 11 and now.minute > 20) or (now.hour == 14 and now.minute > 40):
+        end = now
+
+    bars = await Stock.get_bars(code, 120, FrameType.MIN30, end)
     if len(bars) < 120:
         return None
 
-    new_buys, after_returns, iaall_sells, wr10 = await W_R(bars, up_thresh)
-
-    # new_buys = np.array([x for x in new_buys if x not in iaall_sells])
+    new_buys, after_returns, _, wr10 = await W_R(bars, up_thresh)
 
     if len(new_buys) < 2:
         return None
 
-    if (np.all(iaall_sells != len(bars) - 1)) and (wr10[-1] < 80):
+    if wr10[-1] < 80:
         after_returns = np.array(after_returns)
         if (
             (new_buys[-1] == len(bars) - 2)
-            and (np.all(after_returns[:-1] > 0))
-            and (np.mean(after_returns[:-1] > 0.01))
+            and (np.all(after_returns[:-1] > 0.01))
             and (np.all(np.diff(new_buys) > 8))
-            and (wr10[-1] >= wr10[-2])
         ):
             return -1, after_returns
 
@@ -98,12 +91,11 @@ async def sell_wr(code: str, up_thresh: int = 90):
     if len(bars) < 120:
         return None
 
-    _, after_returns, iaall_sells, _ = await W_R(bars, up_thresh)
+    _, after_returns, sell_flag, _ = await W_R(bars, up_thresh)
 
     # 卖出点
-    if len(iaall_sells) > 0:
-        if iaall_sells[-1] == len(bars) - 1:
-            return 1, after_returns
+    if sell_flag:
+        return 1, after_returns
 
     return None
 
@@ -175,16 +167,22 @@ async def scan_buy():
                 columns=["代码,名称,检测买入时间,所属板块".split(",")],
             )
             result_pd = pd.concat([result_pd, code_info])
-            # plot = await plot_wr(code)
 
-    log.info(f"筛选出来可买股票：{result_pd['名称'].values}")
+    log.info(f"筛选出来可买股票：{result_pd.values}")
     return result_pd
 
 
 # 开盘时运行函数
-async def market_buy():
+async def market_buy(money_percent: float = 1):
     """跌停不买"""
     log.info("函数(market_buy)运行")
+    note = {
+        "title": " WR买入检测开始trader",
+        "text": "#### WR低位买入检测开始",
+    }
+
+    await dingtalk.ding(note)
+
     client = account_init()
     user = account_xq()
 
@@ -197,7 +195,7 @@ async def market_buy():
     # 买卖
     codes = selected_code_pd["代码"].values.flatten().tolist()
     latest_prices = await Stock.get_latest_price(codes)
-    ave_holds = (client.available_money / sum(latest_prices)) // 100
+    ave_holds = (client.available_money * money_percent / sum(latest_prices)) // 100
 
     # 本金足够可以全买, 不够全买则不买
     if ave_holds > 0:
@@ -219,32 +217,21 @@ async def market_buy():
                 if code[0] == "6":
                     code_xq = "SH" + str(code[:6])
                     user.adjust_weight(
-                        code_xq,
-                        int(
-                            (ave_holds * 100 * last_price)
-                            / client.available_money
-                            * 100
-                        ),
-                    )
+                        code_xq, (ave_holds * 100 * last_price) // 10000
+                    ),
                 else:
                     code_xq = "SZ" + str(code[:6])
-                    user.adjust_weight(
-                        code_xq,
-                        int(
-                            (ave_holds * 100 * last_price)
-                            / client.available_money
-                            * 100
-                        ),
-                    )
+                    user.adjust_weight(code_xq, (ave_holds * 100 * last_price) // 10000)
             except Exception as e:
                 print(e)
 
+            ave_holds = int(ave_holds)
             name = await Security.alias(code)
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             # 发送钉钉消息
             msg = {
-                "title": " 买入信号trader",
-                "text": f"#### 买入股票：{code} {name}  \n  #### 触发时间：{now}  \n  #### 买入价：{last_price} \n  #### 成交数量：{ave_holds*100}/{ave_holds*100*last_price}￥",
+                "title": " WR买入信号trader",
+                "text": f"#### WR买入股票：{code} {name}  \n  #### 触发时间：{now}  \n  #### 买入价：{last_price} \n  #### 成交数量：{ave_holds*100}/{ave_holds*100*last_price}¥",
             }
 
             await dingtalk.ding(msg)
@@ -256,7 +243,7 @@ async def market_buy():
     return
 
 
-async def market_sell(rsik_limit: float = -0.03):
+async def market_sell(risk_limit: float = -0.03):
     """跌停不卖;在有持仓，且可卖的情况下，卖出，
     后续根据卖出情况，调整每次卖出数量，或者分批卖出
     """
@@ -289,14 +276,14 @@ async def market_sell(rsik_limit: float = -0.03):
         limit_prices = await Stock.get_trade_price_limits(code, sell_day, sell_day)
         low_limit = limit_prices["low_limit"][0]
         if price_equal(low_limit, last_price):
-            log.info(f"{code}{alia}跌停，不进行交易")
+            log.info(f"{code} {alia}跌停，不进行交易")
             continue
 
         # 卖出条件
         sell_result = await sell_wr(code)
 
         # 满足风控, 或者满足条件，卖出
-        if (last_price / cost_price - 1 < rsik_limit) or (sell_result is not None):
+        if (last_price / cost_price - 1 < risk_limit) or (sell_result is not None):
             aval_share = p["sellable"]
             sell = client.market_sell(code, volume=aval_share)
 
@@ -310,17 +297,18 @@ async def market_sell(rsik_limit: float = -0.03):
             except Exception as e:
                 print(e)
 
+            aval_share = int(aval_share)
             now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             msg = {
-                "title": " 卖出信号trader",
-                "text": f"#### WR高位卖出：{code} {alia}  \n  #### 触发时间：{now}  \n  #### 卖出价：{last_price} \n  #### 成交数量：{aval_share}/{aval_share*last_price}￥",
+                "title": " WR卖出信号trader",
+                "text": f"#### WR高位卖出: {code} {alia}  \n  #### 触发时间：{now}  \n  #### 卖出价：{last_price} \n  #### 成交数量：{aval_share}/{aval_share*last_price}¥",
             }
 
-            if last_price / cost_price - 1 < rsik_limit:
+            if last_price / cost_price - 1 < risk_limit:
                 log.info(f"{code}{alia}触发风控卖出")
                 msg = {
-                    "title": " 卖出信号trader",
-                    "text": f"#### 风控卖出：{code} {alia}  \n  #### 触发时间：{now}  \n  #### 卖出价：{last_price} \n  #### 成交数量：{aval_share}/{aval_share*last_price}￥",
+                    "title": " WR卖出信号trader",
+                    "text": f"#### WR风控卖出: {code} {alia}  \n  #### 触发时间：{now}  \n  #### 卖出价：{last_price} \n  #### 成交数量：{aval_share}/{aval_share*last_price}¥",
                 }
 
             await dingtalk.ding(msg)

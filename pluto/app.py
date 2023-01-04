@@ -46,13 +46,62 @@ async def init(app, loop):
     tblp = TouchBuyLimitPoolStore()
     ssp = SteepSlopesPool()
 
-    scheduler = AsyncIOScheduler(event_loop=loop)
+    scheduler = AsyncIOScheduler(event_loop=loop, timezone="Asia/Shanghai")
     if cfg.tasks.pooling:
         scheduler.add_job(blp.pooling, "cron", hour=15, minute=5)
         scheduler.add_job(tblp.pooling, "cron", hour=15, minute=8)
         scheduler.add_job(ssp.pooling, "cron", hour=15, minute=8)
 
     if cfg.tasks.wr:
+
+        scheduler.add_job(
+            wr.market_buy,
+            "cron",
+            hour=10,
+            minute=0,
+            second=0,
+            name="10:00筛选并买入",
+            args=[1 / 8],
+        )
+
+        scheduler.add_job(
+            wr.market_buy,
+            "cron",
+            hour=10,
+            minute=30,
+            second=0,
+            name="10:30筛选并买入",
+            args=[1 / 7],
+        )
+
+        scheduler.add_job(
+            wr.market_buy,
+            "cron",
+            hour=11,
+            minute=0,
+            second=0,
+            name="11:00筛选并买入",
+            args=[1 / 6],
+        )
+        scheduler.add_job(
+            wr.market_buy,
+            "cron",
+            hour=11,
+            minute=25,
+            second=0,
+            name="11:25筛选并买入",
+            args=[1 / 5],
+        )
+        scheduler.add_job(
+            wr.market_buy,
+            "cron",
+            hour=13,
+            minute=30,
+            second=0,
+            name="13:30筛选并买入",
+            args=[1 / 4],
+        )
+
         scheduler.add_job(
             wr.market_buy,
             "cron",
@@ -60,6 +109,27 @@ async def init(app, loop):
             minute=0,
             second=0,
             name="14:00筛选并买入",
+            args=[1 / 3],
+        )
+
+        scheduler.add_job(
+            wr.market_buy,
+            "cron",
+            hour=14,
+            minute=30,
+            second=0,
+            name="14:30筛选并买入",
+            args=[1 / 2],
+        )
+
+        scheduler.add_job(
+            wr.market_buy,
+            "cron",
+            hour=14,
+            minute=50,
+            second=0,
+            name="14:50筛选并买入",
+            args=[1],
         )
 
         scheduler.add_job(
@@ -76,14 +146,14 @@ async def init(app, loop):
             "cron",
             hour=10,
             second="*/10",  # 每10秒执行一次
-            name="10点检测并卖出",
+            name="10:00~10:59点检测并卖出",
         )
 
         scheduler.add_job(
             wr.market_sell,
             "cron",
             hour=11,
-            minute="0-30",
+            minute="0-29",
             second="*/10",  # 每10秒执行一次
             name="11：00~11：30点检测并卖出",
         )
